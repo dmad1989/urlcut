@@ -43,10 +43,10 @@ func redirect(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	path := req.URL.Path[1:]
-	redirectUrl := urls.GetUrls().GetKey(path)
-	if redirectUrl == "" {
+	redirectURL := urls.GetUrls().GetKey(path)
+	if redirectURL == "" {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	http.Redirect(res, req, redirectUrl, http.StatusTemporaryRedirect)
+	http.Redirect(res, req, redirectURL, http.StatusTemporaryRedirect)
 }
