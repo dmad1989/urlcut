@@ -11,18 +11,18 @@ type cutter interface {
 	GetKeyByValue(value string) string
 }
 
-type serverApi struct {
+type server struct {
 	cut cutter
 	mux *http.ServeMux
 }
 
-func New(cut cutter) *serverApi {
-	api := &serverApi{cut: cut, mux: http.NewServeMux()}
+func New(cut cutter) *server {
+	api := &server{cut: cut, mux: http.NewServeMux()}
 	api.mux.HandleFunc(`/`, api.initHandlers)
 	return api
 }
 
-func (api serverApi) initHandlers(res http.ResponseWriter, req *http.Request) {
+func (api server) initHandlers(res http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodPost:
 		api.cutterHandler(res, req)
@@ -33,7 +33,7 @@ func (api serverApi) initHandlers(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (api serverApi) Run() {
+func (api server) Run() {
 	err := http.ListenAndServe(`:8080`, api.mux)
 	fmt.Println("main err:", err)
 	if err != nil {
@@ -41,7 +41,7 @@ func (api serverApi) Run() {
 	}
 }
 
-func (api serverApi) cutterHandler(res http.ResponseWriter, req *http.Request) {
+func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		res.WriteHeader(http.StatusBadRequest)
 		return
@@ -58,7 +58,7 @@ func (api serverApi) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte(fmt.Sprintf("http://%s%s%s", req.Host, req.URL.Path, code)))
 }
 
-func (api serverApi) redirectHandler(res http.ResponseWriter, req *http.Request) {
+func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		res.WriteHeader(http.StatusBadRequest)
 		return
