@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
-type cutter interface {
-	Cut(body []byte) (generated string)
+type worker interface {
+	Cut(body []byte) (generated string, err error)
 	GetKeyByValue(value string) string
 }
 
 type server struct {
-	cut cutter
+	cut worker
 	mux *http.ServeMux
 }
 
-func New(cut cutter) *server {
+func New(cut worker) *server {
 	api := &server{cut: cut, mux: http.NewServeMux()}
 	api.mux.HandleFunc(`/`, api.initHandlers)
 	return api
@@ -29,7 +30,7 @@ func (api server) initHandlers(res http.ResponseWriter, req *http.Request) {
 	case http.MethodGet:
 		api.redirectHandler(res, req)
 	default:
-		res.WriteHeader(http.StatusBadRequest)
+		responseError(res, fmt.Errorf("wrong http method"))
 	}
 }
 
@@ -43,16 +44,31 @@ func (api server) Run() {
 
 func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		res.WriteHeader(http.StatusBadRequest)
+		responseError(res, fmt.Errorf("wrong http method"))
 		return
 	}
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
-		res.Write([]byte(err.Error()))
+		responseError(res, err)
 		return
 	}
-	code := api.cut.Cut(body)
+
+	if len(body) <= 0 {
+		responseError(res, fmt.Errorf("empty body not expected"))
+		return
+	}
+
+	_, err = url.ParseRequestURI(string(body))
+	if err != nil {
+		responseError(res, err)
+		return
+	}
+
+	code, err := api.cut.Cut(body)
+	if err != nil {
+		responseError(res, err)
+		return
+	}
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
 	res.Write([]byte(fmt.Sprintf("http://%s%s%s", req.Host, req.URL.Path, code)))
@@ -60,14 +76,19 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 
 func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
-		res.WriteHeader(http.StatusBadRequest)
+		responseError(res, fmt.Errorf("wrong http method"))
 		return
 	}
 	path := req.URL.Path[1:]
 	redirectURL := api.cut.GetKeyByValue(path)
 	if redirectURL == "" {
-		res.WriteHeader(http.StatusBadRequest)
+		responseError(res, fmt.Errorf("requested url not found"))
 		return
 	}
 	http.Redirect(res, req, redirectURL, http.StatusTemporaryRedirect)
+}
+
+func responseError(res http.ResponseWriter, err error) {
+	res.WriteHeader(http.StatusBadRequest)
+	res.Write([]byte(err.Error()))
 }

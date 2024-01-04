@@ -20,13 +20,13 @@ func New(storeMap StoreMap) *storage {
 	return &storage{urlsMap: storeMap}
 }
 
-func (store *storage) Cut(body []byte) (generated string) {
+func (store *storage) Cut(body []byte) (generated string, err error) {
 	strBody := string(body)
 	if store.urlsMap.Has(strBody) {
 		generated = store.urlsMap.Get(strBody)
 		return
 	}
-	generated, err := randStringBytes(8)
+	generated, err = randStringBytes(8)
 	if err != nil {
 		return
 	}
