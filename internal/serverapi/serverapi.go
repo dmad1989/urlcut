@@ -80,11 +80,6 @@ func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	path := req.URL.Path[1:]
-	if path == "" {
-		responseError(res, fmt.Errorf("url path is empty"))
-		return
-	}
-
 	redirectURL := api.cut.GetKeyByValue(path)
 	if redirectURL == "" {
 		responseError(res, fmt.Errorf("requested url not found"))
