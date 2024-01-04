@@ -17,8 +17,8 @@ import (
 
 const (
 	postResponsePattern = `^http:\/\/localhost:8080\/\w+`
-	targetUrl           = "http://localhost:8080/"
-	positiveUrl         = "http://ya.ru"
+	targetURL           = "http://localhost:8080/"
+	positiveURL         = "http://ya.ru"
 )
 
 func initEnv() *server {
@@ -57,7 +57,7 @@ func TestInitHandler(t *testing.T) {
 			name: "InitHandler - Positive",
 			request: postRequest{
 				httpMethod: http.MethodPost,
-				body:       strings.NewReader(positiveUrl)},
+				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
 				bodyPattern: postResponsePattern,
@@ -66,7 +66,7 @@ func TestInitHandler(t *testing.T) {
 	serv := initEnv()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(tt.request.httpMethod, targetUrl, tt.request.body)
+			request := httptest.NewRequest(tt.request.httpMethod, targetURL, tt.request.body)
 			w := httptest.NewRecorder()
 
 			serv.initHandlers(w, request)
@@ -75,19 +75,6 @@ func TestInitHandler(t *testing.T) {
 
 			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
 		})
-	}
-}
-
-func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wantedMessage string) {
-	resBody, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	err = res.Body.Close()
-	require.NoError(t, err)
-	assert.NotEmpty(t, resBody)
-	if res.StatusCode == http.StatusCreated {
-		assert.Regexpf(t, regexp.MustCompile(wantedPattern), string(resBody), "body must be like %s", wantedPattern)
-	} else {
-		assert.Equal(t, wantedMessage, string(resBody))
 	}
 }
 
@@ -130,7 +117,7 @@ func TestCutterHandler(t *testing.T) {
 			name: "positive",
 			request: postRequest{
 				httpMethod: http.MethodPost,
-				body:       strings.NewReader(positiveUrl)},
+				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
 				bodyPattern: postResponsePattern,
@@ -140,7 +127,7 @@ func TestCutterHandler(t *testing.T) {
 	serv := initEnv()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(tt.request.httpMethod, targetUrl, tt.request.body)
+			request := httptest.NewRequest(tt.request.httpMethod, targetURL, tt.request.body)
 			w := httptest.NewRecorder()
 			serv.cutterHandler(w, request)
 			res := w.Result()
@@ -150,15 +137,29 @@ func TestCutterHandler(t *testing.T) {
 	}
 }
 
+func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wantedMessage string) {
+	resBody, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	err = res.Body.Close()
+	require.NoError(t, err)
+	assert.NotEmpty(t, resBody)
+	if res.StatusCode == http.StatusCreated {
+		assert.Regexpf(t, regexp.MustCompile(wantedPattern), string(resBody), "body must be like %s", wantedPattern)
+	} else {
+		assert.Equal(t, wantedMessage, string(resBody))
+	}
+}
+
 func doCut(serv *server) (string, error) {
-	reqPost := httptest.NewRequest(http.MethodPost, targetUrl, strings.NewReader(positiveUrl))
+	reqPost := httptest.NewRequest(http.MethodPost, targetURL, strings.NewReader(positiveURL))
 	postRecoder := httptest.NewRecorder()
 	serv.cutterHandler(postRecoder, reqPost)
-	resBody, err := io.ReadAll(postRecoder.Result().Body)
+	res := postRecoder.Result()
+	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", err
 	}
-	err = postRecoder.Result().Body.Close()
+	err = res.Body.Close()
 	if err != nil {
 		return "", err
 	}
@@ -176,7 +177,7 @@ func TestRedirectHandler(t *testing.T) {
 	}
 
 	serv := initEnv()
-	redirectedUrl, err := doCut(serv)
+	redirectedURL, err := doCut(serv)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -218,11 +219,11 @@ func TestRedirectHandler(t *testing.T) {
 			name: "positive",
 			request: redirectRequest{
 				httpMethod: http.MethodGet,
-				url:        redirectedUrl,
+				url:        redirectedURL,
 			},
 			expResp: expectedResponse{
 				code:        http.StatusTemporaryRedirect,
-				bodyMessage: fmt.Sprintf("<a href=\"%s\">Temporary Redirect</a>.\n\n", positiveUrl)},
+				bodyMessage: fmt.Sprintf("<a href=\"%s\">Temporary Redirect</a>.\n\n", redirectedURL)},
 		},
 	}
 
