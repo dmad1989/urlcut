@@ -5,6 +5,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 type worker interface {
@@ -14,25 +17,23 @@ type worker interface {
 
 type server struct {
 	cut worker
-	mux *http.ServeMux
+	mux *chi.Mux
 }
 
 func New(cut worker) *server {
-	api := &server{cut: cut, mux: http.NewServeMux()}
-	api.mux.HandleFunc(`/`, api.initHandlers)
+	api := &server{cut: cut, mux: chi.NewMux()}
+	api.mux.Use(middleware.Recoverer)
+	api.mux.Use(middleware.URLFormat)
+	api.mux.Route("/", func(r chi.Router) {
+		api.mux.Post("/", api.cutterHandler)
+		api.mux.Get("/{code}", api.redirectHandler)
+	})
 	return api
 }
 
-func (api server) initHandlers(res http.ResponseWriter, req *http.Request) {
-	switch req.Method {
-	case http.MethodPost:
-		api.cutterHandler(res, req)
-	case http.MethodGet:
-		api.redirectHandler(res, req)
-	default:
-		responseError(res, fmt.Errorf("wrong http method"))
-	}
-}
+// func (api server) initHandlers() {
+
+// }
 
 func (api server) Run() {
 	err := http.ListenAndServe(`:8080`, api.mux)
@@ -79,8 +80,10 @@ func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 		responseError(res, fmt.Errorf("wrong http method"))
 		return
 	}
-	path := req.URL.Path[1:]
-	if path == "" {
+	fmt.Println("URL.Path:", len(req.URL.Path[1:]), ";")
+	path := chi.URLParam(req, "code")
+	fmt.Println("chi.URLParam ", len(path), ";")
+	if len(path) == 0 {
 		responseError(res, fmt.Errorf("url path is empty"))
 		return
 	}
