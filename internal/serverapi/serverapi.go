@@ -26,24 +26,20 @@ func New(cut worker) *server {
 }
 
 func (api server) initHandlers() {
-	router := api.mux
-	router.Post("/", api.cutterHandler)
-	router.Get("/{code}", api.redirectHandler)
-	fmt.Println("start init router ", router)
-	router.MethodNotAllowed(api.errorHandler)
-	router.NotFound(api.errorHandler)
+	api.mux.Post("/", api.cutterHandler)
+	api.mux.Get("/{code}", api.redirectHandler)
+	api.mux.MethodNotAllowed(api.errorHandler)
+	api.mux.NotFound(api.errorHandler)
 }
 
 func (api server) Run() {
 	err := http.ListenAndServe(`:8080`, api.mux)
-	fmt.Println("main err:", err)
 	if err != nil {
 		panic(err)
 	}
 }
 
 func (api server) errorHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("inside of func ")
 	w.WriteHeader(http.StatusBadRequest)
 	w.Write([]byte("wrong http method"))
 }
@@ -85,9 +81,7 @@ func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 		responseError(res, fmt.Errorf("wrong http method"))
 		return
 	}
-	fmt.Println("URL.Path:", len(req.URL.Path[1:]), ";")
 	path := chi.URLParam(req, "code")
-	fmt.Println("chi.URLParam ", len(path), ";")
 	if len(path) == 0 {
 		responseError(res, fmt.Errorf("url path is empty"))
 		return

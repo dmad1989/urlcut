@@ -38,50 +38,51 @@ type expectedPostResponse struct {
 	bodyMessage string
 }
 
-// func TestInitHandler(t *testing.T) {
-// 	tests := []struct {
-// 		name    string
-// 		request postRequest
-// 		expResp expectedPostResponse
-// 	}{{
-// 		name: "InitHandler - Negative - wrong method",
-// 		request: postRequest{
-// 			httpMethod: http.MethodPut,
-// 			body:       strings.NewReader("")},
-// 		expResp: expectedPostResponse{
-// 			code:        http.StatusBadRequest,
-// 			bodyPattern: "",
-// 			bodyMessage: "wrong http method"},
-// 	},
-// 		{
-// 			name: "InitHandler - Positive",
-// 			request: postRequest{
-// 				httpMethod: http.MethodPost,
-// 				body:       strings.NewReader(positiveURL)},
-// 			expResp: expectedPostResponse{
-// 				code:        http.StatusCreated,
-// 				bodyPattern: postResponsePattern,
-// 				bodyMessage: ""},
-// 		}}
-// 	serv := initEnv()
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			request := httptest.NewRequest(tt.request.httpMethod, targetURL, tt.request.body)
-// 			w := httptest.NewRecorder()
+func TestInitHandler(t *testing.T) {
+	serv := initEnv()
+	testserver := httptest.NewServer(serv.mux)
+	defer testserver.Close()
+	tests := []struct {
+		name    string
+		request postRequest
+		expResp expectedPostResponse
+	}{{
+		name: "InitHandler - Negative - wrong method",
+		request: postRequest{
+			httpMethod: http.MethodPut,
+			body:       strings.NewReader("")},
+		expResp: expectedPostResponse{
+			code:        http.StatusBadRequest,
+			bodyPattern: "",
+			bodyMessage: "wrong http method"},
+	},
+		{
+			name: "InitHandler - Positive",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				body:       strings.NewReader(positiveURL)},
+			expResp: expectedPostResponse{
+				code:        http.StatusCreated,
+				bodyPattern: fmt.Sprintf(postResponsePatternF, testserver.URL[7:]),
+				bodyMessage: ""},
+		}}
 
-// 			serv.initHandlers()
-// 			res := w.Result()
-// 			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
-
-// 			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
-// 		})
-// 	}
-// }
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(tt.request.httpMethod, testserver.URL, tt.request.body)
+			require.NoError(t, err)
+			res, err := testserver.Client().Do(request)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
+			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
+		})
+	}
+}
 
 func TestCutterHandler(t *testing.T) {
 	serv := initEnv()
-	srv := httptest.NewServer(http.HandlerFunc(serv.cutterHandler))
-	defer srv.Close()
+	testserver := httptest.NewServer(serv.mux)
+	defer testserver.Close()
 
 	tests := []struct {
 		name    string
@@ -124,15 +125,15 @@ func TestCutterHandler(t *testing.T) {
 				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
-				bodyPattern: fmt.Sprintf(postResponsePatternF, srv.URL[7:]),
+				bodyPattern: fmt.Sprintf(postResponsePatternF, testserver.URL[7:]),
 				bodyMessage: ""},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request, err := http.NewRequest(tt.request.httpMethod, srv.URL, tt.request.body)
+			request, err := http.NewRequest(tt.request.httpMethod, testserver.URL, tt.request.body)
 			require.NoError(t, err)
-			res, err := srv.Client().Do(request)
+			res, err := testserver.Client().Do(request)
 			require.NoError(t, err)
 			defer res.Body.Close()
 			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
@@ -154,11 +155,12 @@ func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wante
 	}
 }
 
-func doCut(servStruct *server, server *httptest.Server) (string, error) {
-	reqPost := httptest.NewRequest(http.MethodPost, server.URL, strings.NewReader(positiveURL))
-	postRecoder := httptest.NewRecorder()
-	serv.cutterHandler(postRecoder, reqPost)
-	res := postRecoder.Result()
+func doCut(t *testing.T, servStruct *server, testserver *httptest.Server) (string, error) {
+	request, err := http.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL))
+	require.NoError(t, err)
+	res, err := testserver.Client().Do(request)
+	require.NoError(t, err)
+	defer res.Body.Close()
 	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", err
@@ -169,8 +171,8 @@ func doCut(servStruct *server, server *httptest.Server) (string, error) {
 	}
 	return string(resBody), nil
 }
-func TestRedirectHandler(t *testing.T) {
 
+func TestRedirectHandler(t *testing.T) {
 	type redirectRequest struct {
 		httpMethod string
 		url        string
@@ -181,66 +183,60 @@ func TestRedirectHandler(t *testing.T) {
 	}
 
 	serv := initEnv()
-	srv := httptest.NewServer(http.HandlerFunc(serv.cutterHandler))
-	defer srv.Close()
+	testserver := httptest.NewServer(serv.mux)
+	defer testserver.Close()
 
-	redirectedURL, err := doCut(serv)
+	redirectedURL, err := doCut(t, serv, testserver)
 	require.NoError(t, err)
-	fmt.Println(redirectedURL)
 	tests := []struct {
 		name    string
 		request redirectRequest
 		expResp expectedResponse
 	}{
-		// 	{
-		// 	name: "negative - wrong method",
-		// 	request: redirectRequest{
-		// 		httpMethod: http.MethodPost,
-		// 		url:        "http://localhost:8080/",
-		// 	},
-		// 	expResp: expectedResponse{
-		// 		code:        http.StatusBadRequest,
-		// 		bodyMessage: "wrong http method"},
-		// },
-		// 	{
-		// 		name: "negative - empty path",
-		// 		request: redirectRequest{
-		// 			httpMethod: http.MethodGet,
-		// 			url:        "http://localhost:8080/",
-		// 		},
-		// 		expResp: expectedResponse{
-		// 			code:        http.StatusBadRequest,
-		// 			bodyMessage: "url path is empty"},
-		// 	},
-
+		{
+			name: "negative - wrong method",
+			request: redirectRequest{
+				httpMethod: http.MethodPut,
+				url:        testserver.URL,
+			},
+			expResp: expectedResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: "wrong http method"},
+		},
 		{
 			name: "negative - notfound",
 			request: redirectRequest{
 				httpMethod: http.MethodGet,
-				url:        "http://localhost:8080/222",
+				url:        fmt.Sprintf("%s/C222", testserver.URL),
 			},
 			expResp: expectedResponse{
 				code:        http.StatusBadRequest,
 				bodyMessage: "requested url not found"},
 		},
-		// {
-		// 	name: "positive",
-		// 	request: redirectRequest{
-		// 		httpMethod: http.MethodGet,
-		// 		url:        redirectedURL,
-		// 	},
-		// 	expResp: expectedResponse{
-		// 		code:        http.StatusTemporaryRedirect,
-		// 		bodyMessage: fmt.Sprintf("<a href=\"%s\">Temporary Redirect</a>.\n\n", positiveURL)},
-		// },
+		{
+			name: "positive",
+			request: redirectRequest{
+				httpMethod: http.MethodGet,
+				url:        redirectedURL,
+			},
+			expResp: expectedResponse{
+				code:        http.StatusTemporaryRedirect,
+				bodyMessage: fmt.Sprintf("<a href=\"%s\">Temporary Redirect</a>.\n\n", positiveURL)},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			request := httptest.NewRequest(tt.request.httpMethod, tt.request.url, nil)
-			serv.redirectHandler(w, request)
-			res := w.Result()
+			request, err := http.NewRequest(tt.request.httpMethod, tt.request.url, nil)
+			client := &http.Client{
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			}
+			res, err := client.Do(request)
+
+			require.NoError(t, err)
+			defer res.Body.Close()
 			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
