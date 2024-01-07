@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 type worker interface {
@@ -22,18 +21,18 @@ type server struct {
 
 func New(cut worker) *server {
 	api := &server{cut: cut, mux: chi.NewMux()}
-	api.mux.Use(middleware.Recoverer)
-	api.mux.Use(middleware.URLFormat)
-	api.mux.Route("/", func(r chi.Router) {
-		api.mux.Post("/", api.cutterHandler)
-		api.mux.Get("/{code}", api.redirectHandler)
-	})
+	api.initHandlers()
 	return api
 }
 
-// func (api server) initHandlers() {
-
-// }
+func (api server) initHandlers() {
+	router := api.mux
+	router.Post("/", api.cutterHandler)
+	router.Get("/{code}", api.redirectHandler)
+	fmt.Println("start init router ", router)
+	router.MethodNotAllowed(api.errorHandler)
+	router.NotFound(api.errorHandler)
+}
 
 func (api server) Run() {
 	err := http.ListenAndServe(`:8080`, api.mux)
@@ -41,6 +40,12 @@ func (api server) Run() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (api server) errorHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("inside of func ")
+	w.WriteHeader(http.StatusBadRequest)
+	w.Write([]byte("wrong http method"))
 }
 
 func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
