@@ -228,6 +228,7 @@ func TestRedirectHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request, err := http.NewRequest(tt.request.httpMethod, tt.request.url, nil)
+			require.NoError(t, err)
 			client := &http.Client{
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
 					return http.ErrUseLastResponse
