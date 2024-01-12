@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/go-chi/chi/v5"
@@ -75,7 +76,12 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(fmt.Sprintf("http://%s/%s", config.Conf.GetShortAddress(), code)))
+	url := config.Conf.GetShortAddress()
+	pattern := "%s/%s"
+	if !strings.Contains(url, "http://") || !strings.Contains(url, "http//") {
+		pattern = "http://%s/%s"
+	}
+	res.Write([]byte(fmt.Sprintf(pattern, url, code)))
 }
 
 func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
