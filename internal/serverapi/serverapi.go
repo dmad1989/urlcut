@@ -35,8 +35,8 @@ func (api server) initHandlers() {
 }
 
 func (api server) Run() {
-	fmt.Println(config.Conf.Url.String())
-	err := http.ListenAndServe(config.Conf.Url.String(), api.mux)
+	fmt.Println(config.Conf.URL.String())
+	err := http.ListenAndServe(config.Conf.URL.String(), api.mux)
 	if err != nil {
 		panic(err)
 	}

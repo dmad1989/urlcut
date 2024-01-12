@@ -13,13 +13,13 @@ const (
 )
 
 var Conf = config{
-	Url: netAddress{
+	URL: netAddress{
 		host: defHost,
 		port: defPort},
 	shortAddres: ""}
 
 type config struct {
-	Url         netAddress
+	URL         netAddress
 	shortAddres string
 }
 
@@ -29,8 +29,8 @@ type netAddress struct {
 }
 
 func init() {
-	_ = flag.Value(&Conf.Url)
-	flag.Var(&Conf.Url, "a", "server URL format host:port, :port")
+	_ = flag.Value(&Conf.URL)
+	flag.Var(&Conf.URL, "a", "server URL format host:port, :port")
 	flag.StringVar(&Conf.shortAddres, "b", "", "Addres for short url")
 }
 
@@ -60,7 +60,6 @@ func (naddr *netAddress) Set(flagValue string) error {
 	}
 	naddr.port, err = strconv.Atoi(sPort)
 	if err != nil {
-		fmt.Printf(err.Error())
 		return err
 	}
 	return err
@@ -69,7 +68,7 @@ func (naddr *netAddress) Set(flagValue string) error {
 func (c config) GetShortAddress() (res string) {
 	res = c.shortAddres
 	if res == "" {
-		res = c.Url.String()
+		res = c.URL.String()
 	}
 	return
 }
