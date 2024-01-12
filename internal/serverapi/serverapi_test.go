@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	postResponsePatternF = `^http:\/\/%s\/\w+`
-	postResponsePattern  = `^http:\/\/localhost:8080\/\w+`
+	postResponsePatternF = `^http:\/\/%s\/\-\w+`
+	postResponsePattern  = `^http:\/\/localhost:8080\/\-\w+`
 	targetURL            = "http://localhost:8080/"
 	positiveURL          = "http://ya.ru"
 )
