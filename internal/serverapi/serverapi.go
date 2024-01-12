@@ -78,7 +78,7 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusCreated)
 	url := config.Conf.GetShortAddress()
 	pattern := "%s/%s"
-	if !strings.Contains(url, "http://") || !strings.Contains(url, "http//") {
+	if !strings.Contains(url, "http://") && !strings.Contains(url, "http//") {
 		pattern = "http://%s/%s"
 	}
 	res.Write([]byte(fmt.Sprintf(pattern, url, code)))
