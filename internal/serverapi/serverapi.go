@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -33,7 +34,8 @@ func (api server) initHandlers() {
 }
 
 func (api server) Run() {
-	err := http.ListenAndServe(`:8080`, api.mux)
+	fmt.Println(config.Conf.Url.String())
+	err := http.ListenAndServe(config.Conf.Url.String(), api.mux)
 	if err != nil {
 		panic(err)
 	}
@@ -73,7 +75,7 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(fmt.Sprintf("http://%s%s%s", req.Host, req.URL.Path, code)))
+	res.Write([]byte(fmt.Sprintf("http://%s/%s", config.Conf.GetShortAddress(), code)))
 }
 
 func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {

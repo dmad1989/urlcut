@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/store"
 	"github.com/stretchr/testify/assert"
@@ -17,11 +18,13 @@ import (
 
 const (
 	postResponsePatternF = `^http:\/\/%s\/\w+`
+	postResponsePattern  = `^http:\/\/localhost:8080\/\w+`
 	targetURL            = "http://localhost:8080/"
 	positiveURL          = "http://ya.ru"
 )
 
 func initEnv() *server {
+	config.InitConfig()
 	storage := store.New()
 	cut := cutter.New(storage)
 	return New(cut)
@@ -41,6 +44,7 @@ type expectedPostResponse struct {
 func TestInitHandler(t *testing.T) {
 	serv := initEnv()
 	testserver := httptest.NewServer(serv.mux)
+	config.Conf.SetShortAddress(testserver.URL[7:])
 	defer testserver.Close()
 	tests := []struct {
 		name    string
@@ -63,7 +67,7 @@ func TestInitHandler(t *testing.T) {
 				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
-				bodyPattern: fmt.Sprintf(postResponsePatternF, testserver.URL[7:]),
+				bodyPattern: fmt.Sprintf(postResponsePatternF, config.Conf.GetShortAddress()),
 				bodyMessage: ""},
 		}}
 
@@ -83,7 +87,7 @@ func TestCutterHandler(t *testing.T) {
 	serv := initEnv()
 	testserver := httptest.NewServer(serv.mux)
 	defer testserver.Close()
-
+	config.Conf.SetShortAddress(testserver.URL[7:])
 	tests := []struct {
 		name    string
 		request postRequest
@@ -125,7 +129,7 @@ func TestCutterHandler(t *testing.T) {
 				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
-				bodyPattern: fmt.Sprintf(postResponsePatternF, testserver.URL[7:]),
+				bodyPattern: fmt.Sprintf(postResponsePatternF, config.Conf.GetShortAddress()),
 				bodyMessage: ""},
 		},
 	}
@@ -185,7 +189,7 @@ func TestRedirectHandler(t *testing.T) {
 	serv := initEnv()
 	testserver := httptest.NewServer(serv.mux)
 	defer testserver.Close()
-
+	config.Conf.SetShortAddress(testserver.URL[7:])
 	redirectedURL, err := doCut(t, serv, testserver)
 	require.NoError(t, err)
 	tests := []struct {
