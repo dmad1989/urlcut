@@ -3,8 +3,11 @@ package config
 import (
 	"flag"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
+
+	"github.com/caarlos0/env/v6"
 )
 
 const (
@@ -17,6 +20,13 @@ var Conf = config{
 		host: defHost,
 		port: defPort},
 	shortAddres: ""}
+
+var confOs configOs
+
+type configOs struct {
+	Server_address string `env:"SERVER_ADDRESS"`
+	ShortAddres    string `env:"BASE_URL"`
+}
 
 type config struct {
 	URL         netAddress
@@ -36,6 +46,17 @@ func init() {
 
 func InitConfig() {
 	flag.Parse()
+	err := env.Parse(&confOs)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if confOs.Server_address != "" {
+		Conf.URL.Set(confOs.Server_address)
+	}
+	if confOs.ShortAddres != "" {
+		fmt.Println("confOs.ShortAddres ", confOs.ShortAddres)
+		Conf.SetShortAddress(confOs.ShortAddres)
+	}
 }
 
 func (naddr netAddress) getHost() (res string) {
@@ -51,6 +72,7 @@ func (naddr *netAddress) String() string {
 }
 
 func (naddr *netAddress) Set(flagValue string) error {
+	fmt.Println("flagValue ", flagValue)
 	var sPort string
 	var isFound bool
 	var err error
