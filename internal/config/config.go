@@ -24,8 +24,8 @@ var Conf = config{
 var confOs configOs
 
 type configOs struct {
-	Server_address string `env:"SERVER_ADDRESS"`
-	ShortAddres    string `env:"BASE_URL"`
+	ServerAddress string `env:"SERVER_ADDRESS"`
+	ShortAddres   string `env:"BASE_URL"`
 }
 
 type config struct {
@@ -50,8 +50,8 @@ func InitConfig() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if confOs.Server_address != "" {
-		Conf.URL.Set(confOs.Server_address)
+	if confOs.ServerAddress != "" {
+		Conf.URL.Set(confOs.ServerAddress)
 	}
 	if confOs.ShortAddres != "" {
 		fmt.Println("confOs.ShortAddres ", confOs.ShortAddres)
