@@ -35,8 +35,8 @@ func (api server) initHandlers() {
 }
 
 func (api server) Run() {
-	fmt.Println(config.Conf.URL.String())
-	err := http.ListenAndServe(config.Conf.URL.String(), api.mux)
+	fmt.Println(config.Conf.URL)
+	err := http.ListenAndServe(config.Conf.URL, api.mux)
 	if err != nil {
 		panic(err)
 	}
@@ -76,7 +76,7 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	url := config.Conf.GetShortAddress()
+	url := config.Conf.ShortAddress
 	pattern := "%s/%s"
 	if !strings.Contains(url, "http://") && !strings.Contains(url, "http//") {
 		pattern = "http://%s/%s"
