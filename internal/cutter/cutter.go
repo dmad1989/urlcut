@@ -12,30 +12,29 @@ type StoreMap interface {
 	GetKey(value string) (res string)
 }
 
-type storage struct {
+type App struct {
 	urlsMap StoreMap
 }
 
-func New(storeMap StoreMap) *storage {
-	return &storage{urlsMap: storeMap}
+func New(storeMap StoreMap) *App {
+	return &App{urlsMap: storeMap}
 }
 
-func (store *storage) Cut(body []byte) (generated string, err error) {
-	strBody := string(body)
-	if store.urlsMap.Has(strBody) {
-		generated = store.urlsMap.Get(strBody)
+func (app *App) Cut(url string) (generated string, err error) {
+	if app.urlsMap.Has(url) {
+		generated = app.urlsMap.Get(url)
 		return
 	}
 	generated, err = randStringBytes(8)
 	if err != nil {
 		return
 	}
-	store.urlsMap.Add(strBody, generated)
+	app.urlsMap.Add(url, generated)
 	return
 }
 
-func (store *storage) GetKeyByValue(value string) string {
-	return store.urlsMap.GetKey(value)
+func (app *App) GetKeyByValue(value string) string {
+	return app.urlsMap.GetKey(value)
 }
 
 func randStringBytes(n int) (string, error) {

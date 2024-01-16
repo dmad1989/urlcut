@@ -12,7 +12,7 @@ import (
 )
 
 type worker interface {
-	Cut(body []byte) (generated string, err error)
+	Cut(url string) (generated string, err error)
 	GetKeyByValue(value string) string
 }
 
@@ -69,7 +69,7 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	code, err := api.cut.Cut(body)
+	code, err := api.cut.Cut(string(body))
 	if err != nil {
 		responseError(res, err)
 		return
