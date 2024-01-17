@@ -6,9 +6,8 @@ import (
 )
 
 type StoreMap interface {
-	Get(key string) string
+	Get(key string) (string, error)
 	Add(key, value string)
-	Has(key string) bool
 	GetKey(value string) (res string)
 }
 
@@ -21,8 +20,8 @@ func New(storeMap StoreMap) *App {
 }
 
 func (app *App) Cut(url string) (generated string, err error) {
-	if app.urlsMap.Has(url) {
-		generated = app.urlsMap.Get(url)
+	generated, _ = app.urlsMap.Get(url)
+	if generated != "" {
 		return
 	}
 	generated, err = randStringBytes(8)
