@@ -1,7 +1,6 @@
 package serverapi
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -49,10 +48,6 @@ func (api server) errorHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodPost {
-		responseError(res, errors.New("cutterHandler: wrong http method"))
-		return
-	}
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterHandler: error while read request body: %w", err))
@@ -86,10 +81,6 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 }
 
 func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodGet {
-		responseError(res, fmt.Errorf("redirectHandler: wrong http method"))
-		return
-	}
 	path := chi.URLParam(req, "code")
 	if len(path) == 0 {
 		responseError(res, fmt.Errorf("redirectHandler: url path is empty"))
