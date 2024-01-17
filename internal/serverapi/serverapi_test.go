@@ -110,7 +110,7 @@ func TestCutterHandler(t *testing.T) {
 			expResp: expectedPostResponse{
 				code:        http.StatusBadRequest,
 				bodyPattern: "",
-				bodyMessage: "empty body not expected"},
+				bodyMessage: "cutterHandler: empty body not expected"},
 		},
 		{
 			name: "negative - not url",
@@ -120,7 +120,7 @@ func TestCutterHandler(t *testing.T) {
 			expResp: expectedPostResponse{
 				code:        http.StatusBadRequest,
 				bodyPattern: "",
-				bodyMessage: `parse "==fsaw=ae": invalid URI for request`},
+				bodyMessage: `cutterHandler: error while parsing URI: ==fsaw=ae : parse "==fsaw=ae": invalid URI for request`},
 		},
 		{
 			name: "positive",
@@ -215,7 +215,7 @@ func TestRedirectHandler(t *testing.T) {
 			},
 			expResp: expectedResponse{
 				code:        http.StatusBadRequest,
-				bodyMessage: "requested url not found"},
+				bodyMessage: "redirectHandler: error while fetching url fo redirect: Error in GetKeyByValue: no data found in urlMap for value C222"},
 		},
 		{
 			name: "positive",

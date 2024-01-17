@@ -1,6 +1,7 @@
 package serverapi
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 
 type worker interface {
 	Cut(url string) (generated string, err error)
-	GetKeyByValue(value string) string
+	GetKeyByValue(value string) (res string, err error)
 }
 
 type server struct {
@@ -49,29 +50,29 @@ func (api server) errorHandler(w http.ResponseWriter, r *http.Request) {
 
 func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		responseError(res, fmt.Errorf("wrong http method"))
+		responseError(res, errors.New("cutterHandler: wrong http method"))
 		return
 	}
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		responseError(res, err)
+		responseError(res, fmt.Errorf("cutterHandler: error while read request body: %w", err))
 		return
 	}
 
 	if len(body) <= 0 {
-		responseError(res, fmt.Errorf("empty body not expected"))
+		responseError(res, fmt.Errorf("cutterHandler: empty body not expected"))
 		return
 	}
 
 	_, err = url.ParseRequestURI(string(body))
 	if err != nil {
-		responseError(res, err)
+		responseError(res, fmt.Errorf("cutterHandler: error while parsing URI: %s : %w", string(body), err))
 		return
 	}
 
 	code, err := api.cut.Cut(string(body))
 	if err != nil {
-		responseError(res, err)
+		responseError(res, fmt.Errorf("cutterHandler: error while getting code for url: %w", err))
 		return
 	}
 	res.Header().Set("Content-Type", "text/plain")
@@ -86,18 +87,18 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 
 func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
-		responseError(res, fmt.Errorf("wrong http method"))
+		responseError(res, fmt.Errorf("redirectHandler: wrong http method"))
 		return
 	}
 	path := chi.URLParam(req, "code")
 	if len(path) == 0 {
-		responseError(res, fmt.Errorf("url path is empty"))
+		responseError(res, fmt.Errorf("redirectHandler: url path is empty"))
 		return
 	}
 
-	redirectURL := api.cut.GetKeyByValue(path)
-	if redirectURL == "" {
-		responseError(res, fmt.Errorf("requested url not found"))
+	redirectURL, err := api.cut.GetKeyByValue(path)
+	if err != nil {
+		responseError(res, fmt.Errorf("redirectHandler: error while fetching url fo redirect: %w", err))
 		return
 	}
 	http.Redirect(res, req, redirectURL, http.StatusTemporaryRedirect)
