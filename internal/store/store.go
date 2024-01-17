@@ -8,11 +8,7 @@ func New() *urlMap {
 }
 
 func (u urlMap) Get(key string) string {
-	vs := u[key]
-	if len(vs) == 0 {
-		return ""
-	}
-	return vs
+	return u[key]
 }
 
 func (u urlMap) Add(key, value string) {
