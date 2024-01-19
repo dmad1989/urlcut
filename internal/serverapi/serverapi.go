@@ -29,8 +29,6 @@ func New(cutApp app) *server {
 func (api server) initHandlers() {
 	api.mux.Post("/", api.cutterHandler)
 	api.mux.Get("/{path}", api.redirectHandler)
-	api.mux.MethodNotAllowed(api.errorHandler)
-	api.mux.NotFound(api.errorHandler)
 }
 
 func (api server) Run() {
@@ -39,11 +37,6 @@ func (api server) Run() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func (api server) errorHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusBadRequest)
-	w.Write([]byte("wrong http method"))
 }
 
 func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {

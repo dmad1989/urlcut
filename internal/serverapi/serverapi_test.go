@@ -56,9 +56,9 @@ func TestInitHandler(t *testing.T) {
 			httpMethod: http.MethodPut,
 			body:       strings.NewReader("")},
 		expResp: expectedPostResponse{
-			code:        http.StatusBadRequest,
+			code:        http.StatusMethodNotAllowed,
 			bodyPattern: "",
-			bodyMessage: "wrong http method"},
+			bodyMessage: ""},
 	},
 		{
 			name: "InitHandler - Positive",
@@ -98,9 +98,9 @@ func TestCutterHandler(t *testing.T) {
 			httpMethod: http.MethodGet,
 			body:       strings.NewReader("")},
 		expResp: expectedPostResponse{
-			code:        http.StatusBadRequest,
+			code:        http.StatusMethodNotAllowed,
 			bodyPattern: "",
-			bodyMessage: "wrong http method"},
+			bodyMessage: ""},
 	},
 		{
 			name: "negative - empty Body",
@@ -151,7 +151,6 @@ func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wante
 	require.NoError(t, err)
 	err = res.Body.Close()
 	require.NoError(t, err)
-	assert.NotEmpty(t, resBody)
 	if res.StatusCode == http.StatusCreated {
 		assert.Regexpf(t, regexp.MustCompile(wantedPattern), string(resBody), "body must be like %s", wantedPattern)
 	} else {
@@ -204,8 +203,8 @@ func TestRedirectHandler(t *testing.T) {
 				url:        testserver.URL,
 			},
 			expResp: expectedResponse{
-				code:        http.StatusBadRequest,
-				bodyMessage: "wrong http method"},
+				code:        http.StatusMethodNotAllowed,
+				bodyMessage: ""},
 		},
 		{
 			name: "negative - notfound",
@@ -247,7 +246,6 @@ func TestRedirectHandler(t *testing.T) {
 			require.NoError(t, err)
 			err = res.Body.Close()
 			require.NoError(t, err)
-			assert.NotEmpty(t, resBody)
 			assert.Equal(t, tt.expResp.bodyMessage, string(resBody))
 		})
 	}
