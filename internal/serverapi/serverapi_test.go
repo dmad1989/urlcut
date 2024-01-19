@@ -44,7 +44,7 @@ type expectedPostResponse struct {
 func TestInitHandler(t *testing.T) {
 	serv := initEnv()
 	testserver := httptest.NewServer(serv.mux)
-	config.Conf.ShortAddress = testserver.URL[7:]
+	config.Conf.ShortAddress = testserver.URL
 	defer testserver.Close()
 	tests := []struct {
 		name    string
@@ -67,7 +67,7 @@ func TestInitHandler(t *testing.T) {
 				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
-				bodyPattern: fmt.Sprintf(postResponsePatternF, config.Conf.ShortAddress),
+				bodyPattern: fmt.Sprintf(postResponsePatternF, config.Conf.ShortAddress[7:]),
 				bodyMessage: ""},
 		}}
 
@@ -87,7 +87,7 @@ func TestCutterHandler(t *testing.T) {
 	serv := initEnv()
 	testserver := httptest.NewServer(serv.mux)
 	defer testserver.Close()
-	config.Conf.ShortAddress = testserver.URL[7:]
+	config.Conf.ShortAddress = testserver.URL
 	tests := []struct {
 		name    string
 		request postRequest
@@ -129,7 +129,7 @@ func TestCutterHandler(t *testing.T) {
 				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
-				bodyPattern: fmt.Sprintf(postResponsePatternF, config.Conf.ShortAddress),
+				bodyPattern: fmt.Sprintf(postResponsePatternF, config.Conf.ShortAddress[7:]),
 				bodyMessage: ""},
 		},
 	}
@@ -189,7 +189,7 @@ func TestRedirectHandler(t *testing.T) {
 	serv := initEnv()
 	testserver := httptest.NewServer(serv.mux)
 	defer testserver.Close()
-	config.Conf.ShortAddress = testserver.URL[7:]
+	config.Conf.ShortAddress = testserver.URL
 	redirectedURL, err := doCut(t, serv, testserver)
 	require.NoError(t, err)
 	tests := []struct {

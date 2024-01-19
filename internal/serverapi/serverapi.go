@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/go-chi/chi/v5"
@@ -29,7 +28,7 @@ func New(cut worker) *server {
 
 func (api server) initHandlers() {
 	api.mux.Post("/", api.cutterHandler)
-	api.mux.Get("/{code}", api.redirectHandler)
+	api.mux.Get("/{path}", api.redirectHandler)
 	api.mux.MethodNotAllowed(api.errorHandler)
 	api.mux.NotFound(api.errorHandler)
 }
@@ -72,17 +71,12 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	url := config.Conf.ShortAddress
-	pattern := "%s/%s"
-	if !strings.Contains(url, "http://") && !strings.Contains(url, "http//") {
-		pattern = "http://%s/%s"
-	}
-	res.Write([]byte(fmt.Sprintf(pattern, url, code)))
+	res.Write([]byte(fmt.Sprintf("%s/%s", config.Conf.ShortAddress, code)))
 }
 
 func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
-	path := chi.URLParam(req, "code")
-	if len(path) == 0 {
+	path := chi.URLParam(req, "path")
+	if path == "" {
 		responseError(res, fmt.Errorf("redirectHandler: url path is empty"))
 		return
 	}
