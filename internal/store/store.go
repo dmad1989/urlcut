@@ -3,32 +3,43 @@ package store
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
-type urlMap map[string]string
+type storage struct {
+	rw     *sync.RWMutex
+	urlMap map[string]string
+}
 
-func New() *urlMap {
-	res := make(urlMap, 2)
+func New() *storage {
+	res := storage{urlMap: make(map[string]string, 2), rw: &sync.RWMutex{}}
+
 	return &res
 }
 
-func (u urlMap) Get(key string) (string, error) {
-	generated, isFound := u[key]
+func (store storage) Get(key string) (string, error) {
+	store.rw.RLock()
+	generated, isFound := store.urlMap[key]
+	store.rw.RUnlock()
 	if !isFound {
 		return "", fmt.Errorf("generated code for url %s is not found", key)
 	}
 	return generated, nil
 }
 
-func (u urlMap) Add(key, value string) {
-	u[key] = value
+func (store storage) Add(key, value string) {
+	store.rw.Lock()
+	store.urlMap[key] = value
+	store.rw.Unlock()
 }
 
-func (u urlMap) GetKey(value string) (res string, err error) {
-	if len(u) == 0 {
+func (store storage) GetKey(value string) (res string, err error) {
+	store.rw.RLock()
+	defer store.rw.RUnlock()
+	if len(store.urlMap) == 0 {
 		return "", errors.New("urlMap is empty")
 	}
-	for key, val := range u {
+	for key, val := range store.urlMap {
 		if val == value {
 			return key, nil
 		}
