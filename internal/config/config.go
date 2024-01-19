@@ -6,7 +6,8 @@ import (
 )
 
 const (
-	defHost = "localhost:8080"
+	defHost      = "localhost:8080"
+	defShortHost = "http://localhost:8080"
 )
 
 var Conf = config{
@@ -20,7 +21,7 @@ type config struct {
 
 func init() {
 	flag.StringVar(&Conf.URL, "a", defHost, "server URL format host:port, :port")
-	flag.StringVar(&Conf.ShortAddress, "b", "", "Address for short url")
+	flag.StringVar(&Conf.ShortAddress, "b", defShortHost, "Address for short url")
 }
 
 func InitConfig() {
@@ -34,7 +35,7 @@ func InitConfig() {
 		Conf.ShortAddress = os.Getenv("BASE_URL")
 	}
 
-	if Conf.ShortAddress == "" {
-		Conf.ShortAddress = Conf.URL
-	}
+	// if Conf.ShortAddress == "" {
+	// 	Conf.ShortAddress = Conf.URL
+	// }
 }
