@@ -10,7 +10,7 @@ import (
 func main() {
 	config.InitConfig()
 	storage := store.New()
-	cut := cutter.New(storage)
-	server := serverapi.New(cut)
+	app := cutter.New(storage)
+	server := serverapi.New(app)
 	server.Run()
 }

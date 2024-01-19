@@ -10,18 +10,18 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type worker interface {
+type app interface {
 	Cut(url string) (generated string, err error)
 	GetKeyByValue(value string) (res string, err error)
 }
 
 type server struct {
-	cut worker
-	mux *chi.Mux
+	cutterApp app
+	mux       *chi.Mux
 }
 
-func New(cut worker) *server {
-	api := &server{cut: cut, mux: chi.NewMux()}
+func New(cutApp app) *server {
+	api := &server{cutterApp: cutApp, mux: chi.NewMux()}
 	api.initHandlers()
 	return api
 }
@@ -64,7 +64,7 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	code, err := api.cut.Cut(string(body))
+	code, err := api.cutterApp.Cut(string(body))
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterHandler: error while getting code for url: %w", err))
 		return
@@ -81,7 +81,7 @@ func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	redirectURL, err := api.cut.GetKeyByValue(path)
+	redirectURL, err := api.cutterApp.GetKeyByValue(path)
 	if err != nil {
 		responseError(res, fmt.Errorf("redirectHandler: error while fetching url fo redirect: %w", err))
 		return
