@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -32,11 +33,12 @@ func New(cutApp app, config conf) *server {
 }
 
 func (s server) initHandlers() {
-	s.mux.Post("/", s.cutterHandler)
-	s.mux.Get("/{path}", s.redirectHandler)
+	s.mux.Post("/", logging.WithLog(s.cutterHandler))
+	s.mux.Get("/{path}", logging.WithLog(s.redirectHandler))
 }
 
 func (s server) Run() error {
+	logging.Log.Sugar().Infof("Server started at %s", s.config.GetURL())
 	err := http.ListenAndServe(s.config.GetURL(), s.mux)
 	if err != nil {
 		return fmt.Errorf("serverapi.Run: %w", err)
