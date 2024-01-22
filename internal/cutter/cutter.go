@@ -21,13 +21,17 @@ func New(s store) *App {
 }
 
 func (a *App) Cut(url string) (generated string, err error) {
-	generated, _ = a.storage.Get(url)
+	generated, err = a.storage.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("Cut: getting value by key %s from storage : %w", url, err)
+	}
+
 	if generated != "" {
 		return
 	}
 	generated, err = randStringBytes(8)
 	if err != nil {
-		return "", fmt.Errorf("error in cut method: %w", err)
+		return "", fmt.Errorf("Cut: while generating path: %w", err)
 	}
 	a.storage.Add(url, generated)
 	return
@@ -36,7 +40,7 @@ func (a *App) Cut(url string) (generated string, err error) {
 func (a *App) GetKeyByValue(value string) (res string, err error) {
 	res, err = a.storage.GetKey(value)
 	if err != nil {
-		return "", fmt.Errorf("error in GetKeyByValue: %w", err)
+		return "", fmt.Errorf("GetKeyByValue: while getting value by key:%s: %w", value, err)
 	}
 	return
 }
@@ -45,7 +49,7 @@ func randStringBytes(n int) (string, error) {
 	b := make([]byte, n)
 	_, err := rand.Read(b)
 	if err != nil {
-		return "", fmt.Errorf("error while generating random string: %w", err)
+		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
 	}
 	return base64.URLEncoding.EncodeToString(b)[:n], nil
 }

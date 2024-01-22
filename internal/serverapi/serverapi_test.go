@@ -136,7 +136,7 @@ func TestCutterHandler(t *testing.T) {
 			expResp: expectedPostResponse{
 				code:        http.StatusBadRequest,
 				bodyPattern: "",
-				bodyMessage: `cutterHandler: error while parsing URI: ==fsaw=ae : parse "==fsaw=ae": invalid URI for request`},
+				bodyMessage: `cutterHandler: parsing URI: ==fsaw=ae : parse "==fsaw=ae": invalid URI for request`},
 		},
 		{
 			name: "positive",
@@ -227,7 +227,7 @@ func TestRedirectHandler(t *testing.T) {
 			},
 			expResp: expectedResponse{
 				code:        http.StatusBadRequest,
-				bodyMessage: "redirectHandler: error while fetching url fo redirect: error in GetKeyByValue: no data found in urlMap for value C222"},
+				bodyMessage: "redirectHandler: fetching url fo redirect: GetKeyByValue: while getting value by key:C222: no data found in urlMap for value C222"},
 		},
 		{
 			name: "positive",

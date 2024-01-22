@@ -46,7 +46,7 @@ func (s server) Run() {
 func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		responseError(res, fmt.Errorf("cutterHandler: error while read request body: %w", err))
+		responseError(res, fmt.Errorf("cutterHandler: reading request body: %w", err))
 		return
 	}
 
@@ -57,13 +57,13 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 
 	_, err = url.ParseRequestURI(string(body))
 	if err != nil {
-		responseError(res, fmt.Errorf("cutterHandler: error while parsing URI: %s : %w", string(body), err))
+		responseError(res, fmt.Errorf("cutterHandler: parsing URI: %s : %w", string(body), err))
 		return
 	}
 
 	code, err := s.cutterApp.Cut(string(body))
 	if err != nil {
-		responseError(res, fmt.Errorf("cutterHandler: error while getting code for url: %w", err))
+		responseError(res, fmt.Errorf("cutterHandler: getting code for url: %w", err))
 		return
 	}
 
@@ -81,7 +81,7 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 
 	redirectURL, err := s.cutterApp.GetKeyByValue(path)
 	if err != nil {
-		responseError(res, fmt.Errorf("redirectHandler: error while fetching url fo redirect: %w", err))
+		responseError(res, fmt.Errorf("redirectHandler: fetching url fo redirect: %w", err))
 		return
 	}
 	http.Redirect(res, req, redirectURL, http.StatusTemporaryRedirect)

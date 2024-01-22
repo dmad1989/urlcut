@@ -25,7 +25,7 @@ func (s *storage) Get(key string) (string, error) {
 	generated, isFound := s.urlMap[key]
 	s.rw.RUnlock()
 	if !isFound {
-		return "", fmt.Errorf("generated code for url %s is not found", key)
+		return "", nil
 	}
 	return generated, nil
 }
