@@ -51,5 +51,5 @@ func randStringBytes(n int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
 	}
-	return base64.URLEncoding.EncodeToString(b)[:n], nil
+	return base64.URLEncoding.EncodeToString(b), nil
 }

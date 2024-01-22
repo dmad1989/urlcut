@@ -13,9 +13,9 @@ type storage struct {
 
 func New() *storage {
 	res := storage{
-		urlMap:    make(map[string]string, 2),
+		urlMap:    make(map[string]string),
 		rw:        sync.RWMutex{},
-		revertMap: make(map[string]string, 2)}
+		revertMap: make(map[string]string)}
 
 	return &res
 }
