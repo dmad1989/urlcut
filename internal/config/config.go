@@ -10,32 +10,38 @@ const (
 	defShortHost = "http://localhost:8080"
 )
 
-var Conf = config{
-	URL:          defHost,
-	ShortAddress: ""}
+var conf = Config{
+	url:          defHost,
+	shortAddress: ""}
 
-type config struct {
-	URL          string
-	ShortAddress string
+type Config struct {
+	url          string
+	shortAddress string
 }
 
 func init() {
-	flag.StringVar(&Conf.URL, "a", defHost, "server URL format host:port, :port")
-	flag.StringVar(&Conf.ShortAddress, "b", defShortHost, "Address for short url")
+	flag.StringVar(&conf.url, "a", defHost, "server URL format host:port, :port")
+	flag.StringVar(&conf.shortAddress, "b", defShortHost, "Address for short url")
 }
 
-func InitConfig() {
+func ParseConfig() Config {
 	flag.Parse()
 
 	if os.Getenv("SERVER_ADDRESS") != "" {
-		Conf.URL = os.Getenv("SERVER_ADDRESS")
+		conf.url = os.Getenv("SERVER_ADDRESS")
 	}
 
 	if os.Getenv("BASE_URL") != "" {
-		Conf.ShortAddress = os.Getenv("BASE_URL")
+		conf.shortAddress = os.Getenv("BASE_URL")
 	}
 
-	// if Conf.ShortAddress == "" {
-	// 	Conf.ShortAddress = Conf.URL
-	// }
+	return conf
+}
+
+func (c Config) GetUrl() string {
+	return c.url
+}
+
+func (c Config) GetShortAddress() string {
+	return c.shortAddress
 }

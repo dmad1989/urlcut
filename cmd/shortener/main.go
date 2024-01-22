@@ -8,9 +8,9 @@ import (
 )
 
 func main() {
-	config.InitConfig()
+	conf := config.ParseConfig()
 	storage := store.New()
 	app := cutter.New(storage)
-	server := serverapi.New(app)
+	server := serverapi.New(app, conf)
 	server.Run()
 }

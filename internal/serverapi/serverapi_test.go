@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/store"
 	"github.com/stretchr/testify/assert"
@@ -23,11 +22,32 @@ const (
 	positiveURL          = "http://ya.ru"
 )
 
-func initEnv() *server {
-	config.InitConfig()
+type TestConfig struct {
+	url          string
+	shortAddress string
+}
+
+var tconf *TestConfig
+
+func (c TestConfig) GetUrl() string {
+	return c.url
+}
+
+func (c TestConfig) GetShortAddress() string {
+	return c.shortAddress
+}
+
+func initEnv() (serv *server, testserver *httptest.Server) {
+	tconf = &TestConfig{
+		url:          ":8080",
+		shortAddress: "http://localhost:8080/"}
+
 	storage := store.New()
 	cut := cutter.New(storage)
-	return New(cut)
+	serv = New(cut, tconf)
+	testserver = httptest.NewServer(serv.mux)
+	tconf.shortAddress = testserver.URL
+	return
 }
 
 type postRequest struct {
@@ -42,9 +62,7 @@ type expectedPostResponse struct {
 }
 
 func TestInitHandler(t *testing.T) {
-	serv := initEnv()
-	testserver := httptest.NewServer(serv.mux)
-	config.Conf.ShortAddress = testserver.URL
+	serv, testserver := initEnv()
 	defer testserver.Close()
 	tests := []struct {
 		name    string
@@ -67,7 +85,7 @@ func TestInitHandler(t *testing.T) {
 				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
-				bodyPattern: fmt.Sprintf(postResponsePatternF, config.Conf.ShortAddress[7:]),
+				bodyPattern: fmt.Sprintf(postResponsePatternF, serv.config.GetShortAddress()[7:]),
 				bodyMessage: ""},
 		}}
 
@@ -84,10 +102,8 @@ func TestInitHandler(t *testing.T) {
 }
 
 func TestCutterHandler(t *testing.T) {
-	serv := initEnv()
-	testserver := httptest.NewServer(serv.mux)
+	serv, testserver := initEnv()
 	defer testserver.Close()
-	config.Conf.ShortAddress = testserver.URL
 	tests := []struct {
 		name    string
 		request postRequest
@@ -129,7 +145,7 @@ func TestCutterHandler(t *testing.T) {
 				body:       strings.NewReader(positiveURL)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
-				bodyPattern: fmt.Sprintf(postResponsePatternF, config.Conf.ShortAddress[7:]),
+				bodyPattern: fmt.Sprintf(postResponsePatternF, serv.config.GetShortAddress()[7:]),
 				bodyMessage: ""},
 		},
 	}
@@ -184,11 +200,8 @@ func TestRedirectHandler(t *testing.T) {
 		code        int
 		bodyMessage string
 	}
-
-	serv := initEnv()
-	testserver := httptest.NewServer(serv.mux)
+	serv, testserver := initEnv()
 	defer testserver.Close()
-	config.Conf.ShortAddress = testserver.URL
 	redirectedURL, err := doCut(t, serv, testserver)
 	require.NoError(t, err)
 	tests := []struct {

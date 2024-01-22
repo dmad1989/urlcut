@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -15,13 +14,19 @@ type app interface {
 	GetKeyByValue(value string) (res string, err error)
 }
 
+type conf interface {
+	GetUrl() string
+	GetShortAddress() string
+}
+
 type server struct {
 	cutterApp app
+	config    conf
 	mux       *chi.Mux
 }
 
-func New(cutApp app) *server {
-	api := &server{cutterApp: cutApp, mux: chi.NewMux()}
+func New(cutApp app, config conf) *server {
+	api := &server{cutterApp: cutApp, config: config, mux: chi.NewMux()}
 	api.initHandlers()
 	return api
 }
@@ -32,7 +37,7 @@ func (api server) initHandlers() {
 }
 
 func (api server) Run() {
-	err := http.ListenAndServe(config.Conf.URL, api.mux)
+	err := http.ListenAndServe(api.config.GetUrl(), api.mux)
 	if err != nil {
 		panic(err)
 	}
@@ -61,9 +66,10 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 		responseError(res, fmt.Errorf("cutterHandler: error while getting code for url: %w", err))
 		return
 	}
+
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(fmt.Sprintf("%s/%s", config.Conf.ShortAddress, code)))
+	res.Write([]byte(fmt.Sprintf("%s/%s", api.config.GetShortAddress(), code)))
 }
 
 func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
