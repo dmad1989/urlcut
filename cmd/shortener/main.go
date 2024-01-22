@@ -12,5 +12,8 @@ func main() {
 	storage := store.New()
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
-	server.Run()
+	err := server.Run()
+	if err != nil {
+		panic(err)
+	}
 }

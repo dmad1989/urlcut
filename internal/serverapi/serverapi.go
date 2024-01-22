@@ -36,11 +36,12 @@ func (s server) initHandlers() {
 	s.mux.Get("/{path}", s.redirectHandler)
 }
 
-func (s server) Run() {
+func (s server) Run() error {
 	err := http.ListenAndServe(s.config.GetURL(), s.mux)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("serverapi.Run: %w", err)
 	}
+	return nil
 }
 
 func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
