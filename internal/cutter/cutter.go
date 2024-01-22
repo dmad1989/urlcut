@@ -6,22 +6,22 @@ import (
 	"fmt"
 )
 
-type StoreMap interface {
+type store interface {
 	Get(key string) (string, error)
 	Add(key, value string)
 	GetKey(value string) (res string, err error)
 }
 
 type App struct {
-	urlsMap StoreMap
+	storage store
 }
 
-func New(storeMap StoreMap) *App {
-	return &App{urlsMap: storeMap}
+func New(s store) *App {
+	return &App{storage: s}
 }
 
-func (app *App) Cut(url string) (generated string, err error) {
-	generated, _ = app.urlsMap.Get(url)
+func (a *App) Cut(url string) (generated string, err error) {
+	generated, _ = a.storage.Get(url)
 	if generated != "" {
 		return
 	}
@@ -29,12 +29,12 @@ func (app *App) Cut(url string) (generated string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("error in cut method: %w", err)
 	}
-	app.urlsMap.Add(url, generated)
+	a.storage.Add(url, generated)
 	return
 }
 
-func (app *App) GetKeyByValue(value string) (res string, err error) {
-	res, err = app.urlsMap.GetKey(value)
+func (a *App) GetKeyByValue(value string) (res string, err error) {
+	res, err = a.storage.GetKey(value)
 	if err != nil {
 		return "", fmt.Errorf("error in GetKeyByValue: %w", err)
 	}

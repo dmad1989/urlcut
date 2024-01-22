@@ -29,7 +29,7 @@ type TestConfig struct {
 
 var tconf *TestConfig
 
-func (c TestConfig) GetUrl() string {
+func (c TestConfig) GetURL() string {
 	return c.url
 }
 

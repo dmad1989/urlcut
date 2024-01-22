@@ -38,7 +38,7 @@ func ParseConfig() Config {
 	return conf
 }
 
-func (c Config) GetUrl() string {
+func (c Config) GetURL() string {
 	return c.url
 }
 

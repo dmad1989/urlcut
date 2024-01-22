@@ -15,7 +15,7 @@ type app interface {
 }
 
 type conf interface {
-	GetUrl() string
+	GetURL() string
 	GetShortAddress() string
 }
 
@@ -31,19 +31,19 @@ func New(cutApp app, config conf) *server {
 	return api
 }
 
-func (api server) initHandlers() {
-	api.mux.Post("/", api.cutterHandler)
-	api.mux.Get("/{path}", api.redirectHandler)
+func (s server) initHandlers() {
+	s.mux.Post("/", s.cutterHandler)
+	s.mux.Get("/{path}", s.redirectHandler)
 }
 
-func (api server) Run() {
-	err := http.ListenAndServe(api.config.GetUrl(), api.mux)
+func (s server) Run() {
+	err := http.ListenAndServe(s.config.GetURL(), s.mux)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
+func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterHandler: error while read request body: %w", err))
@@ -61,7 +61,7 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	code, err := api.cutterApp.Cut(string(body))
+	code, err := s.cutterApp.Cut(string(body))
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterHandler: error while getting code for url: %w", err))
 		return
@@ -69,17 +69,17 @@ func (api server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(fmt.Sprintf("%s/%s", api.config.GetShortAddress(), code)))
+	res.Write([]byte(fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code)))
 }
 
-func (api server) redirectHandler(res http.ResponseWriter, req *http.Request) {
+func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	path := chi.URLParam(req, "path")
 	if path == "" {
 		responseError(res, fmt.Errorf("redirectHandler: url path is empty"))
 		return
 	}
 
-	redirectURL, err := api.cutterApp.GetKeyByValue(path)
+	redirectURL, err := s.cutterApp.GetKeyByValue(path)
 	if err != nil {
 		responseError(res, fmt.Errorf("redirectHandler: error while fetching url fo redirect: %w", err))
 		return
