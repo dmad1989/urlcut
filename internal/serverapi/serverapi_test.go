@@ -20,6 +20,9 @@ const (
 	postResponsePattern  = `^http:\/\/localhost:8080\/.+`
 	targetURL            = "http://localhost:8080/"
 	positiveURL          = "http://ya.ru"
+	JSONBodyRequest      = `{"url":"http://ya.ru/"}`
+	JSONPatternResponse  = `^{"result":"http:\/\/%s\/.+\n`
+	JSONPathPattern      = "%s/api/shorten"
 )
 
 type TestConfig struct {
@@ -53,6 +56,7 @@ func initEnv() (serv *server, testserver *httptest.Server) {
 type postRequest struct {
 	httpMethod string
 	body       io.Reader
+	jsonHeader bool
 }
 
 type expectedPostResponse struct {
@@ -260,6 +264,69 @@ func TestRedirectHandler(t *testing.T) {
 			err = res.Body.Close()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expResp.bodyMessage, string(resBody))
+		})
+	}
+}
+
+func TestCutterJSONHandler(t *testing.T) {
+	serv, testserver := initEnv()
+	defer testserver.Close()
+	tests := []struct {
+		name    string
+		request postRequest
+		expResp expectedPostResponse
+	}{{
+		name: "negative - wrong method",
+		request: postRequest{
+			httpMethod: http.MethodGet,
+			body:       strings.NewReader("")},
+		expResp: expectedPostResponse{
+			code: http.StatusMethodNotAllowed},
+	},
+		{
+			name: "negative - no json header",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				body:       strings.NewReader("JSONBodyRequest")},
+			expResp: expectedPostResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: `cutterJsonHandler: content-type have to be application/json`},
+		},
+		{
+			name: "negative - empty Body",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				jsonHeader: true,
+				body:       strings.NewReader("")},
+			expResp: expectedPostResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: "cutterJsonHandler: decoding request: EOF"},
+		},
+
+		{
+			name: "positive",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				jsonHeader: true,
+				body:       strings.NewReader(JSONBodyRequest)},
+			expResp: expectedPostResponse{
+				code:        http.StatusCreated,
+				bodyPattern: fmt.Sprintf(JSONPatternResponse, serv.config.GetShortAddress()[7:]),
+				bodyMessage: ""},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(tt.request.httpMethod, fmt.Sprintf(JSONPathPattern, testserver.URL), tt.request.body)
+			if tt.request.jsonHeader {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			require.NoError(t, err)
+			res, err := testserver.Client().Do(request)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
+			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
 		})
 	}
 }
