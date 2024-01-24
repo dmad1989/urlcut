@@ -36,7 +36,7 @@ func New(cutApp app, config conf) *server {
 func (s server) initHandlers() {
 	s.mux.Post("/", logging.WithLog(s.cutterHandler))
 	s.mux.Get("/{path}", logging.WithLog(s.redirectHandler))
-	s.mux.Post("/api/shorten", logging.WithLog(s.cutterJsonHandler))
+	s.mux.Post("/api/shorten", logging.WithLog(s.cutterJSONHandler))
 }
 
 func (s server) Run() error {
@@ -49,25 +49,25 @@ func (s server) Run() error {
 }
 
 type request struct {
-	Url string `json:"url"`
+	URL string `json:"url"`
 }
 
 type response struct {
 	Result string `json:"result"`
 }
 
-func (s server) cutterJsonHandler(res http.ResponseWriter, req *http.Request) {
-	var reqJson request
+func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
+	var reqJSON request
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("cutterJsonHandler: content-type have to be application/json"))
 		return
 	}
 	dec := json.NewDecoder(req.Body)
-	if err := dec.Decode(&reqJson); err != nil {
+	if err := dec.Decode(&reqJSON); err != nil {
 		responseError(res, fmt.Errorf("cutterJsonHandler: decoding request: %w", err))
 		return
 	}
-	code, err := s.cutterApp.Cut(reqJson.Url)
+	code, err := s.cutterApp.Cut(reqJSON.URL)
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterJsonHandler: getting code for url: %w", err))
 		return
@@ -75,11 +75,11 @@ func (s server) cutterJsonHandler(res http.ResponseWriter, req *http.Request) {
 
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusCreated)
-	respJson := response{
+	respJSON := response{
 		Result: fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code),
 	}
 	enc := json.NewEncoder(res)
-	if err := enc.Encode(respJson); err != nil {
+	if err := enc.Encode(respJSON); err != nil {
 		responseError(res, fmt.Errorf("cutterJsonHandler: encoding response: %w", err))
 		return
 	}
