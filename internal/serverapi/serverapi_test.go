@@ -1,6 +1,8 @@
 package serverapi
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -325,8 +327,58 @@ func TestCutterJSONHandler(t *testing.T) {
 			res, err := testserver.Client().Do(request)
 			require.NoError(t, err)
 			defer res.Body.Close()
+
 			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
 			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
 		})
 	}
+}
+func TestCompression(t *testing.T) {
+	_, testserver := initEnv()
+	defer testserver.Close()
+	t.Run("sends_gzip", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		zb := gzip.NewWriter(buf)
+		_, err := zb.Write([]byte(JSONBodyRequest))
+		require.NoError(t, err)
+		err = zb.Close()
+		require.NoError(t, err)
+		r, err := http.NewRequest("POST", fmt.Sprintf(JSONPathPattern, testserver.URL), buf)
+		require.NoError(t, err)
+
+		r.Header.Set("Content-Encoding", "gzip")
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Accept-Encoding", "gzip")
+
+		resp, err := testserver.Client().Do(r)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+		defer resp.Body.Close()
+
+		_, err = io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+	})
+
+	// t.Run("accepts_gzip", func(t *testing.T) {
+	// 	buf := bytes.NewBufferString(requestBody)
+	// 	r := httptest.NewRequest("POST", srv.URL, buf)
+	// 	r.RequestURI = ""
+	// 	r.Header.Set("Accept-Encoding", "gzip")
+
+	// 	resp, err := http.DefaultClient.Do(r)
+	// 	require.NoError(t, err)
+	// 	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// 	defer resp.Body.Close()
+
+	// 	zr, err := gzip.NewReader(resp.Body)
+	// 	require.NoError(t, err)
+
+	// 	b, err := io.ReadAll(zr)
+	// 	require.NoError(t, err)
+
+	// 	require.JSONEq(t, successBody, string(b))
+	// })
 }

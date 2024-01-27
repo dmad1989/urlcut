@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
@@ -27,6 +28,14 @@ type server struct {
 	mux       *chi.Mux
 }
 
+type request struct {
+	URL string `json:"url"`
+}
+
+type response struct {
+	Result string `json:"result"`
+}
+
 func New(cutApp app, config conf) *server {
 	api := &server{cutterApp: cutApp, config: config, mux: chi.NewMux()}
 	api.initHandlers()
@@ -34,7 +43,7 @@ func New(cutApp app, config conf) *server {
 }
 
 func (s server) initHandlers() {
-	s.mux.Use(logging.WithLog)
+	s.mux.Use(logging.WithLog, gzipMiddleware)
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
 	s.mux.Post("/api/shorten", s.cutterJSONHandler)
@@ -47,14 +56,6 @@ func (s server) Run() error {
 		return fmt.Errorf("serverapi.Run: %w", err)
 	}
 	return nil
-}
-
-type request struct {
-	URL string `json:"url"`
-}
-
-type response struct {
-	Result string `json:"result"`
 }
 
 func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
@@ -133,4 +134,27 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 func responseError(res http.ResponseWriter, err error) {
 	res.WriteHeader(http.StatusBadRequest)
 	res.Write([]byte(err.Error()))
+}
+
+func gzipMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextW := w
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			cr, err := newCompressReader(r.Body)
+			if err != nil {
+				responseError(w, fmt.Errorf("gzip: fail to read compressed body: %w", err))
+				return
+			}
+			r.Body = cr
+			defer cr.Close()
+		}
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header()
+			cw := newCompressWriter(w)
+			nextW = cw
+			defer cw.Close()
+		}
+
+		h.ServeHTTP(nextW, r)
+	})
 }
