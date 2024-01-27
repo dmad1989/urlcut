@@ -31,7 +31,7 @@ func Initilize() error {
 	return nil
 }
 
-func WithLog(h http.HandlerFunc) http.HandlerFunc {
+func WithLog(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		uri := r.RequestURI

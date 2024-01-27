@@ -34,9 +34,10 @@ func New(cutApp app, config conf) *server {
 }
 
 func (s server) initHandlers() {
-	s.mux.Post("/", logging.WithLog(s.cutterHandler))
-	s.mux.Get("/{path}", logging.WithLog(s.redirectHandler))
-	s.mux.Post("/api/shorten", logging.WithLog(s.cutterJSONHandler))
+	s.mux.Use(logging.WithLog)
+	s.mux.Post("/", s.cutterHandler)
+	s.mux.Get("/{path}", s.redirectHandler)
+	s.mux.Post("/api/shorten", s.cutterJSONHandler)
 }
 
 func (s server) Run() error {
