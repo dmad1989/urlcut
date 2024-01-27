@@ -169,9 +169,16 @@ func TestCutterHandler(t *testing.T) {
 }
 
 func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wantedMessage string) {
-	resBody, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	err = res.Body.Close()
+	var resBody string
+	if res.Header.Get("Content-Encoding") == "gzip" {
+		resBody = unzipBody(t, res.Body)
+	} else {
+		b, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		resBody = string(b)
+
+	}
+	err := res.Body.Close()
 	require.NoError(t, err)
 	if res.StatusCode == http.StatusCreated {
 		assert.Regexpf(t, regexp.MustCompile(wantedPattern), string(resBody), "body must be like %s", wantedPattern)
@@ -361,24 +368,12 @@ func TestCompression(t *testing.T) {
 		require.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
 	})
 
-	// t.Run("accepts_gzip", func(t *testing.T) {
-	// 	buf := bytes.NewBufferString(requestBody)
-	// 	r := httptest.NewRequest("POST", srv.URL, buf)
-	// 	r.RequestURI = ""
-	// 	r.Header.Set("Accept-Encoding", "gzip")
+}
 
-	// 	resp, err := http.DefaultClient.Do(r)
-	// 	require.NoError(t, err)
-	// 	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// 	defer resp.Body.Close()
-
-	// 	zr, err := gzip.NewReader(resp.Body)
-	// 	require.NoError(t, err)
-
-	// 	b, err := io.ReadAll(zr)
-	// 	require.NoError(t, err)
-
-	// 	require.JSONEq(t, successBody, string(b))
-	// })
+func unzipBody(t *testing.T, body io.ReadCloser) string {
+	zr, err := gzip.NewReader(body)
+	require.NoError(t, err)
+	b, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	return string(b)
 }
