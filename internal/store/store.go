@@ -5,13 +5,17 @@ import (
 	"sync"
 )
 
+type conf interface {
+	GetFileStoreName() string
+}
+
 type storage struct {
 	rw        sync.RWMutex
 	urlMap    map[string]string
 	revertMap map[string]string
 }
 
-func New() *storage {
+func New(c conf) *storage {
 	res := storage{
 		urlMap:    make(map[string]string),
 		rw:        sync.RWMutex{},

@@ -28,8 +28,9 @@ const (
 )
 
 type TestConfig struct {
-	url          string
-	shortAddress string
+	url           string
+	shortAddress  string
+	fileStoreName string
 }
 
 var tconf *TestConfig
@@ -41,13 +42,17 @@ func (c TestConfig) GetURL() string {
 func (c TestConfig) GetShortAddress() string {
 	return c.shortAddress
 }
+func (c TestConfig) GetFileStoreName() string {
+	return c.fileStoreName
+}
 
 func initEnv() (serv *server, testserver *httptest.Server) {
 	tconf = &TestConfig{
-		url:          ":8080",
-		shortAddress: "http://localhost:8080/"}
+		url:           ":8080",
+		shortAddress:  "http://localhost:8080/",
+		fileStoreName: "/tmp/short-url-db.json"}
 
-	storage := store.New()
+	storage := store.New(tconf)
 	cut := cutter.New(storage)
 	serv = New(cut, tconf)
 	testserver = httptest.NewServer(serv.mux)
