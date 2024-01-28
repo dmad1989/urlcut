@@ -23,7 +23,7 @@ const (
 	targetURL            = "http://localhost:8080/"
 	positiveURL          = "http://ya.ru"
 	JSONBodyRequest      = `{"url":"http://ya.ru/"}`
-	JSONPatternResponse  = `^{"result":"http:\/\/%s\/.+\n`
+	JSONPatternResponse  = `^{"result":"http:\/\/%s\/.+`
 	JSONPathPattern      = "%s/api/shorten"
 )
 

@@ -9,6 +9,8 @@ type conf interface {
 	GetFileStoreName() string
 }
 
+// type
+
 type storage struct {
 	rw        sync.RWMutex
 	urlMap    map[string]string

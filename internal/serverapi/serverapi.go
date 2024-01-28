@@ -1,7 +1,6 @@
 package serverapi
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dmad1989/urlcut/internal/logging"
+	"github.com/dmad1989/urlcut/internal/myjsons"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -26,14 +26,6 @@ type server struct {
 	cutterApp app
 	config    conf
 	mux       *chi.Mux
-}
-
-type request struct {
-	URL string `json:"url"`
-}
-
-type response struct {
-	Result string `json:"result"`
 }
 
 func New(cutApp app, config conf) *server {
@@ -59,13 +51,17 @@ func (s server) Run() error {
 }
 
 func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
-	var reqJSON request
+	var reqJSON myjsons.Request
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("cutterJsonHandler: content-type have to be application/json"))
 		return
 	}
-	dec := json.NewDecoder(req.Body)
-	if err := dec.Decode(&reqJSON); err != nil {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		responseError(res, fmt.Errorf("cutterJsonHandler: reading request body: %w", err))
+		return
+	}
+	if err := reqJSON.UnmarshalJSON(body); err != nil {
 		responseError(res, fmt.Errorf("cutterJsonHandler: decoding request: %w", err))
 		return
 	}
@@ -77,14 +73,15 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusCreated)
-	respJSON := response{
+	respJSON := myjsons.Response{
 		Result: fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code),
 	}
-	enc := json.NewEncoder(res)
-	if err := enc.Encode(respJSON); err != nil {
+	respb, err := respJSON.MarshalJSON()
+	if err != nil {
 		responseError(res, fmt.Errorf("cutterJsonHandler: encoding response: %w", err))
 		return
 	}
+	res.Write(respb)
 }
 
 func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
