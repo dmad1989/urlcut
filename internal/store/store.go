@@ -116,7 +116,7 @@ func createIfNeeded(path string, fileName string) error {
 	if err != nil {
 		return fmt.Errorf("fail mkdir: %w", err)
 	}
-	logging.Log.Sugar().Infof("dir was created: %s ", path)
+	logging.Log.Sugar().Debug("dir was created: %s ", path)
 	err = os.Chdir(path)
 	if err != nil {
 		return fmt.Errorf("fail chdir: %w", err)
@@ -128,11 +128,11 @@ func createIfNeeded(path string, fileName string) error {
 			err = fmt.Errorf("fail create file: %w", err1)
 		}
 		if err == nil {
-			logging.Log.Sugar().Infof("file was created: %s (path %s)", fileName, path)
+			logging.Log.Sugar().Debug("file was created: %s (path %s)", fileName, path)
 		}
 		return err
 	} else {
-		logging.Log.Sugar().Infof("file was found: %s (path %s)", fileName, path)
+		logging.Log.Sugar().Debug("file was found: %s (path %s)", fileName, path)
 	}
 
 	return err

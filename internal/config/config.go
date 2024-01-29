@@ -44,7 +44,7 @@ func ParseConfig() Config {
 		conf.fileStoreName = os.Getenv("FILE_STORAGE_PATH")
 	}
 
-	logging.Log.Sugar().Infof("starting config URL: %s ; shortAddres: %s ; fileStoreName: %s", conf.url, conf.shortAddress, conf.fileStoreName)
+	logging.Log.Sugar().Debug("starting config URL: %s ; shortAddres: %s ; fileStoreName: %s", conf.url, conf.shortAddress, conf.fileStoreName)
 	return conf
 }
 

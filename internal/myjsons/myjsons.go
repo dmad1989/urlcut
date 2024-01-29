@@ -1,6 +1,5 @@
 package myjsons
 
-//go:generate easyjson -all myjsons.go
 //easyjson:json
 type Request struct {
 	URL string `json:"url"`
