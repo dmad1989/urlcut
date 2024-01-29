@@ -54,7 +54,7 @@ func (s *storage) Add(key, value string) error {
 		return fmt.Errorf("fail read items in Add: %w", err)
 	}
 	id := len(items) + 1
-	items = append(items, myjsons.StoreItem{Id: id, ShortURL: key, OriginalURL: value})
+	items = append(items, myjsons.StoreItem{ID: id, ShortURL: key, OriginalURL: value})
 
 	if err := writeItems(s.fileName, items); err != nil {
 		return fmt.Errorf("fail write items in Add: %w", err)

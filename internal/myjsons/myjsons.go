@@ -13,7 +13,7 @@ type Response struct {
 
 //easyjson:json
 type StoreItem struct {
-	Id          int    `json:"uuid"`
+	ID          int    `json:"uuid"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }

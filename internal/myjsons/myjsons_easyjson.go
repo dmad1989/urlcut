@@ -103,7 +103,7 @@ func easyjsonEd95e889DecodeGithubComDmad1989UrlcutInternalMyjsons1(in *jlexer.Le
 		}
 		switch key {
 		case "uuid":
-			out.Id = int(in.Int())
+			out.ID = int(in.Int())
 		case "short_url":
 			out.ShortURL = string(in.String())
 		case "original_url":
@@ -125,7 +125,7 @@ func easyjsonEd95e889EncodeGithubComDmad1989UrlcutInternalMyjsons1(out *jwriter.
 	{
 		const prefix string = ",\"uuid\":"
 		out.RawString(prefix[1:])
-		out.Int(int(in.Id))
+		out.Int(int(in.ID))
 	}
 	{
 		const prefix string = ",\"short_url\":"
