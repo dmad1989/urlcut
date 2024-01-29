@@ -52,7 +52,10 @@ func initEnv() (serv *server, testserver *httptest.Server) {
 		shortAddress:  "http://localhost:8080/",
 		fileStoreName: "/tmp/short-url-db.json"}
 
-	storage := store.New(tconf)
+	storage, err := store.New(tconf)
+	if err != nil {
+		panic(err)
+	}
 	cut := cutter.New(storage)
 	serv = New(cut, tconf)
 	testserver = httptest.NewServer(serv.mux)
@@ -245,7 +248,7 @@ func TestRedirectHandler(t *testing.T) {
 			},
 			expResp: expectedResponse{
 				code:        http.StatusBadRequest,
-				bodyMessage: "redirectHandler: fetching url fo redirect: GetKeyByValue: while getting value by key:C222: no data found in urlMap for value C222"},
+				bodyMessage: "redirectHandler: fetching url fo redirect: GetKeyByValue: while getting value by key:C222: no data found in store for value C222"},
 		},
 		{
 			name: "positive",

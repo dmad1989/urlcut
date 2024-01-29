@@ -14,7 +14,10 @@ func main() {
 		panic(err)
 	}
 	conf := config.ParseConfig()
-	storage := store.New(conf)
+	storage, err := store.New(conf)
+	if err != nil {
+		panic(err)
+	}
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
 	err = server.Run()

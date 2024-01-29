@@ -8,7 +8,7 @@ import (
 
 type store interface {
 	Get(key string) (string, error)
-	Add(key, value string)
+	Add(key, value string) error
 	GetKey(value string) (res string, err error)
 }
 
@@ -33,7 +33,10 @@ func (a *App) Cut(url string) (generated string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("Cut: while generating path: %w", err)
 	}
-	a.storage.Add(url, generated)
+	err = a.storage.Add(url, generated)
+	if err != nil {
+		return "", fmt.Errorf("Cut: failed to add path: %w", err)
+	}
 	return
 }
 

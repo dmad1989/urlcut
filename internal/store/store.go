@@ -2,53 +2,138 @@ package store
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
+
+	"github.com/dmad1989/urlcut/internal/myjsons"
 )
 
 type conf interface {
 	GetFileStoreName() string
 }
 
-// type
-
 type storage struct {
-	rw        sync.RWMutex
-	urlMap    map[string]string
-	revertMap map[string]string
+	rw       sync.RWMutex
+	fileName string
 }
 
-func New(c conf) *storage {
+func New(c conf) (*storage, error) {
+	fn := filepath.Base(c.GetFileStoreName())
+	fp := filepath.Dir(c.GetFileStoreName())
 	res := storage{
-		urlMap:    make(map[string]string),
-		rw:        sync.RWMutex{},
-		revertMap: make(map[string]string)}
-
-	return &res
+		rw:       sync.RWMutex{},
+		fileName: fn,
+	}
+	if err := createIfNeeded(fp, fn); err != nil {
+		return nil, fmt.Errorf("fail to create storage ", err)
+	}
+	return &res, nil
 }
 
 func (s *storage) Get(key string) (string, error) {
 	s.rw.RLock()
-	generated, isFound := s.urlMap[key]
-	s.rw.RUnlock()
-	if !isFound {
-		return "", nil
+	defer s.rw.RUnlock()
+	items, err := readItems(s.fileName)
+	if err != nil {
+		return "", fmt.Errorf("fail read items in Get", err)
 	}
-	return generated, nil
+	for _, item := range items {
+		if item.ShortURL == key {
+			return item.OriginalURL, nil
+		}
+	}
+	return "", nil
 }
 
-func (s *storage) Add(key, value string) {
+func (s *storage) Add(key, value string) error {
 	s.rw.Lock()
-	s.urlMap[key] = value
-	s.revertMap[value] = key
-	s.rw.Unlock()
+	defer s.rw.Unlock()
+	items, err := readItems(s.fileName)
+	if err != nil {
+		return fmt.Errorf("fail read items in Add", err)
+	}
+	id := len(items) + 1
+	items = append(items, myjsons.StoreItem{Id: id, ShortURL: key, OriginalURL: value})
+
+	if err := writeItems(s.fileName, items); err != nil {
+		return fmt.Errorf("fail write items in Add", err)
+	}
+	return nil
 }
 
 func (s *storage) GetKey(value string) (string, error) {
 	s.rw.RLock()
-	res, isFound := s.revertMap[value]
-	s.rw.RUnlock()
-	if !isFound {
-		return "", fmt.Errorf("no data found in urlMap for value %s", value)
+	defer s.rw.RUnlock()
+
+	items, err := readItems(s.fileName)
+	if err != nil {
+		return "", fmt.Errorf("fail read items in GetByKey ", err)
 	}
-	return res, nil
+	for _, item := range items {
+		if item.OriginalURL == value {
+			return item.ShortURL, nil
+		}
+	}
+	return "", fmt.Errorf("no data found in store for value %s", value)
+}
+
+func readItems(fname string) (myjsons.StoreItemSlice, error) {
+	b, err := os.ReadFile(fname)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %w", err)
+	}
+	if len(b) == 0 {
+		return nil, nil
+	}
+
+	items := myjsons.StoreItemSlice{}
+	err = items.UnmarshalJSON(b)
+	if err != nil {
+		return nil, fmt.Errorf("failed unmarshal from file %w", err)
+	}
+	return items, nil
+}
+
+func writeItems(fname string, items myjsons.StoreItemSlice) error {
+
+	data, err := items.MarshalJSON()
+	if err != nil {
+		return fmt.Errorf("fail marshal items ", err)
+	}
+
+	err = os.WriteFile(fname, data, 066)
+	if err != nil {
+		return fmt.Errorf("failed to open file to write: %w", err)
+	}
+
+	return nil
+}
+
+func createIfNeeded(path string, file string) error {
+	curPath, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("fail get curPath ", err)
+	}
+
+	newPath := curPath + path
+	err = os.MkdirAll(newPath, 0750)
+	if err != nil {
+		return fmt.Errorf("fail mkdir ", err)
+	}
+
+	err = os.Chdir(newPath)
+	if err != nil {
+		return fmt.Errorf("fail chdir ", err)
+	}
+
+	if _, err := os.Stat(file); os.IsNotExist(err) {
+		file, err := os.Create(file)
+		if err1 := file.Close(); err1 != nil && err == nil {
+			err = fmt.Errorf("fail create file", err1)
+		}
+		return err
+	}
+
+	return err
 }
