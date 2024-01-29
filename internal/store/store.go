@@ -112,18 +112,12 @@ func writeItems(fname string, items myjsons.StoreItemSlice) error {
 }
 
 func createIfNeeded(path string, fileName string) error {
-	curPath, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("fail get curPath: %w", err)
-	}
-
-	newPath := curPath + path
-	err = os.MkdirAll(newPath, 0750)
+	err := os.MkdirAll(path, 0750)
 	if err != nil {
 		return fmt.Errorf("fail mkdir: %w", err)
 	}
-	logging.Log.Sugar().Infof("dir was created: %s (full path %s)", path, newPath)
-	err = os.Chdir(newPath)
+	logging.Log.Sugar().Infof("dir was created: %s ", path)
+	err = os.Chdir(path)
 	if err != nil {
 		return fmt.Errorf("fail chdir: %w", err)
 	}
@@ -134,11 +128,11 @@ func createIfNeeded(path string, fileName string) error {
 			err = fmt.Errorf("fail create file: %w", err1)
 		}
 		if err == nil {
-			logging.Log.Sugar().Infof("file was created: %s (full path %s)", fileName, newPath)
+			logging.Log.Sugar().Infof("file was created: %s (path %s)", fileName, path)
 		}
 		return err
 	} else {
-		logging.Log.Sugar().Infof("file was found: %s (full path %s)", fileName, newPath)
+		logging.Log.Sugar().Infof("file was found: %s (path %s)", fileName, path)
 	}
 
 	return err
