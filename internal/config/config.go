@@ -3,6 +3,8 @@ package config
 import (
 	"flag"
 	"os"
+
+	"github.com/dmad1989/urlcut/internal/logging"
 )
 
 const (
@@ -42,6 +44,7 @@ func ParseConfig() Config {
 		conf.fileStoreName = os.Getenv("FILE_STORAGE_PATH")
 	}
 
+	logging.Log.Sugar().Infof("starting config URL: %s ; shortAddres: %s ; fileStoreName: %s", conf.url, conf.shortAddress, conf.fileStoreName)
 	return conf
 }
 

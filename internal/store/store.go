@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/dmad1989/urlcut/internal/myjsons"
 )
 
@@ -110,7 +111,7 @@ func writeItems(fname string, items myjsons.StoreItemSlice) error {
 	return nil
 }
 
-func createIfNeeded(path string, file string) error {
+func createIfNeeded(path string, fileName string) error {
 	curPath, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("fail get curPath: %w", err)
@@ -121,18 +122,23 @@ func createIfNeeded(path string, file string) error {
 	if err != nil {
 		return fmt.Errorf("fail mkdir: %w", err)
 	}
-
+	logging.Log.Sugar().Infof("dir was created: %s (full path %s)", path, newPath)
 	err = os.Chdir(newPath)
 	if err != nil {
 		return fmt.Errorf("fail chdir: %w", err)
 	}
 
-	if _, err := os.Stat(file); os.IsNotExist(err) {
-		file, err := os.Create(file)
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+		file, err := os.Create(fileName)
 		if err1 := file.Close(); err1 != nil && err == nil {
 			err = fmt.Errorf("fail create file: %w", err1)
 		}
+		if err == nil {
+			logging.Log.Sugar().Infof("file was created: %s (full path %s)", fileName, newPath)
+		}
 		return err
+	} else {
+		logging.Log.Sugar().Infof("file was found: %s (full path %s)", fileName, newPath)
 	}
 
 	return err
