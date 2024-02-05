@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,49 +16,51 @@ type conf interface {
 }
 
 type storage struct {
-	rw       sync.RWMutex
-	fileName string
+	rw        sync.RWMutex
+	urlMap    map[string]string
+	revertMap map[string]string
+	fileName  string
 }
 
 func New(c conf) (*storage, error) {
 	fn := filepath.Base(c.GetFileStoreName())
 	fp := filepath.Dir(c.GetFileStoreName())
 	res := storage{
-		rw:       sync.RWMutex{},
-		fileName: fn,
+		rw:        sync.RWMutex{},
+		fileName:  fn,
+		urlMap:    make(map[string]string),
+		revertMap: make(map[string]string),
 	}
+
 	if err := createIfNeeded(fp, fn); err != nil {
 		return nil, fmt.Errorf("fail to create storage: %w", err)
 	}
+
+	if err := res.readFromFile(); err != nil {
+		return nil, fmt.Errorf("fail to read from storage: %w", err)
+	}
+
 	return &res, nil
 }
 
 func (s *storage) Get(key string) (string, error) {
 	s.rw.RLock()
-	defer s.rw.RUnlock()
-	items, err := readItems(s.fileName)
-	if err != nil {
-		return "", fmt.Errorf("fail read items in Get: %w", err)
+	generated, isFound := s.urlMap[key]
+	s.rw.RUnlock()
+	if !isFound {
+		return "", nil
 	}
-	for _, item := range items {
-		if item.ShortURL == key {
-			return item.OriginalURL, nil
-		}
-	}
-	return "", nil
+	return generated, nil
 }
 
 func (s *storage) Add(key, value string) error {
 	s.rw.Lock()
 	defer s.rw.Unlock()
-	items, err := readItems(s.fileName)
-	if err != nil {
-		return fmt.Errorf("fail read items in Add: %w", err)
-	}
-	id := len(items) + 1
-	items = append(items, myjsons.StoreItem{ID: id, ShortURL: key, OriginalURL: value})
+	s.urlMap[key] = value
+	s.revertMap[value] = key
+	id := len(s.urlMap) + 1
 
-	if err := writeItems(s.fileName, items); err != nil {
+	if err := writeItem(s.fileName, myjsons.StoreItem{ID: id, ShortURL: key, OriginalURL: value}); err != nil {
 		return fmt.Errorf("fail write items in Add: %w", err)
 	}
 	return nil
@@ -66,48 +69,84 @@ func (s *storage) Add(key, value string) error {
 func (s *storage) GetKey(value string) (string, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
-
-	items, err := readItems(s.fileName)
-	if err != nil {
-		return "", fmt.Errorf("fail read items in GetByKey: %w", err)
+	res, isFound := s.revertMap[value]
+	if !isFound {
+		return "", fmt.Errorf("no data found in urlMap for value %s", value)
 	}
-	for _, item := range items {
-		if item.OriginalURL == value {
-			return item.ShortURL, nil
-		}
-	}
-	return "", fmt.Errorf("no data found in store for value %s", value)
+	return res, nil
 }
 
-func readItems(fname string) (myjsons.StoreItemSlice, error) {
-	b, err := os.ReadFile(fname)
+func (s *storage) readFromFile() error {
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+
+	c, err := NewConsumer(s.fileName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return fmt.Errorf("failed to open file for read: %w", err)
 	}
-	if len(b) == 0 {
-		return nil, nil
+	items, err := c.ReadItems()
+	if err != nil {
+		return fmt.Errorf("failed to read from file: %w", err)
+	}
+	for _, item := range items {
+		s.urlMap[item.ShortURL] = item.OriginalURL
+		s.revertMap[item.OriginalURL] = item.ShortURL
 	}
 
-	items := myjsons.StoreItemSlice{}
-	err = items.UnmarshalJSON(b)
+	return nil
+}
+
+type Consumer struct {
+	file *os.File
+	// заменяем Reader на Scanner
+	scanner *bufio.Scanner
+}
+
+func NewConsumer(filename string) (*Consumer, error) {
+	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
-		return nil, fmt.Errorf("failed unmarshal from file: %w", err)
+		return nil, err
+	}
+
+	return &Consumer{
+		file:    file,
+		scanner: bufio.NewScanner(file),
+	}, nil
+}
+
+func (c *Consumer) ReadItems() ([]myjsons.StoreItem, error) {
+	items := []myjsons.StoreItem{}
+	for c.scanner.Scan() {
+		data := c.scanner.Bytes()
+		item := myjsons.StoreItem{}
+		err := item.UnmarshalJSON(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed unmarshal from file: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := c.scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan file error: %v", err)
 	}
 	return items, nil
 }
 
-func writeItems(fname string, items myjsons.StoreItemSlice) error {
-
-	data, err := items.MarshalJSON()
+func writeItem(fname string, item myjsons.StoreItem) error {
+	data, err := item.MarshalJSON()
 	if err != nil {
-		return fmt.Errorf("fail marshal items: %w", err)
+		return fmt.Errorf("fail marshal item: %w", err)
 	}
 
-	err = os.WriteFile(fname, data, 066)
+	file, err := os.OpenFile(fname, os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		return fmt.Errorf("failed to open file to write: %w", err)
 	}
-
+	defer file.Close()
+	data = append(data, '\n')
+	_, err = file.Write(data)
+	if err != nil {
+		return fmt.Errorf("failed to write in file: %w", err)
+	}
 	return nil
 }
 
