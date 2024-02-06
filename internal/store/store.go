@@ -97,15 +97,14 @@ func (s *storage) readFromFile() error {
 }
 
 type Consumer struct {
-	file *os.File
-	// заменяем Reader на Scanner
+	file    *os.File
 	scanner *bufio.Scanner
 }
 
 func NewConsumer(filename string) (*Consumer, error) {
 	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 
 	return &Consumer{
@@ -151,11 +150,12 @@ func writeItem(fname string, item myjsons.StoreItem) error {
 }
 
 func createIfNeeded(path string, fileName string) error {
+	defer logging.Log.Sync()
 	err := os.MkdirAll(path, 0750)
 	if err != nil {
 		return fmt.Errorf("fail mkdir: %w", err)
 	}
-	logging.Log.Sugar().Debug("dir was created: %s ", path)
+	logging.Log.Debugf("dir was created: %s ", path)
 	err = os.Chdir(path)
 	if err != nil {
 		return fmt.Errorf("fail chdir: %w", err)
@@ -167,11 +167,11 @@ func createIfNeeded(path string, fileName string) error {
 			err = fmt.Errorf("fail create file: %w", err1)
 		}
 		if err == nil {
-			logging.Log.Sugar().Debug("file was created: %s (path %s)", fileName, path)
+			logging.Log.Debugf("file was created: %s (path %s)", fileName, path)
 		}
 		return err
 	} else {
-		logging.Log.Sugar().Debug("file was found: %s (path %s)", fileName, path)
+		logging.Log.Debugf("file was found: %s (path %s)", fileName, path)
 	}
 
 	return err

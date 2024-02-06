@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/dmad1989/urlcut/internal/logging"
+	"go.uber.org/zap"
 )
 
 const (
@@ -31,7 +32,7 @@ func init() {
 
 func ParseConfig() Config {
 	flag.Parse()
-
+	defer logging.Log.Sync()
 	if os.Getenv("SERVER_ADDRESS") != "" {
 		conf.url = os.Getenv("SERVER_ADDRESS")
 	}
@@ -43,8 +44,10 @@ func ParseConfig() Config {
 	if os.Getenv("FILE_STORAGE_PATH") != "" {
 		conf.fileStoreName = os.Getenv("FILE_STORAGE_PATH")
 	}
-
-	logging.Log.Sugar().Debug("starting config URL: %s ; shortAddres: %s ; fileStoreName: %s", conf.url, conf.shortAddress, conf.fileStoreName)
+	logging.Log.Debugw("starting config ",
+		zap.String("URL", conf.url),
+		zap.String("shortAddress", conf.shortAddress),
+		zap.String("fileStoreName", conf.fileStoreName))
 	return conf
 }
 

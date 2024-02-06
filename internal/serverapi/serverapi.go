@@ -42,7 +42,8 @@ func (s server) initHandlers() {
 }
 
 func (s server) Run() error {
-	logging.Log.Sugar().Infof("Server started at %s", s.config.GetURL())
+	defer logging.Log.Sync()
+	logging.Log.Infof("Server started at %s", s.config.GetURL())
 	err := http.ListenAndServe(s.config.GetURL(), s.mux)
 	if err != nil {
 		return fmt.Errorf("serverapi.Run: %w", err)

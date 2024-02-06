@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var Log *zap.Logger = zap.NewNop()
+var Log *zap.SugaredLogger = zap.NewNop().Sugar()
 
 type (
 	responseData struct {
@@ -27,15 +27,19 @@ func Initilize() error {
 	if err != nil {
 		return fmt.Errorf("Logger.Initlogs: %w", err)
 	}
-	Log = zl
+	Log = zl.Sugar()
 	return nil
 }
 
 func WithLog(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
+		defer Log.Sync()
 		start := time.Now()
 		uri := r.RequestURI
 		method := r.Method
+		Log.Infow("Request",
+			zap.String("uri", uri),
+			zap.String("method", method))
 		responseData := &responseData{
 			status: 0,
 			size:   0,
@@ -46,12 +50,10 @@ func WithLog(h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(&lw, r)
 		duration := time.Since(start)
-		Log.Sugar().Infoln(
-			"uri:", uri,
-			"; method:", method,
-			"; duration:", duration,
-			"; status:", responseData.status,
-			"; size:", responseData.size,
+		Log.Infow("Response",
+			zap.Duration("duration", duration),
+			zap.Int("status", responseData.status),
+			zap.Int("size", responseData.size),
 		)
 	}
 	return http.HandlerFunc(logFn)

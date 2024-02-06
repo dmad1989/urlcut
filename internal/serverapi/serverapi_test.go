@@ -248,7 +248,7 @@ func TestRedirectHandler(t *testing.T) {
 			},
 			expResp: expectedResponse{
 				code:        http.StatusBadRequest,
-				bodyMessage: "redirectHandler: fetching url fo redirect: GetKeyByValue: while getting value by key:C222: no data found in urlMap for value C222"},
+				bodyMessage: "redirectHandler: fetching url fo redirect: getKeyByValue: while getting value by key:C222: no data found in urlMap for value C222"},
 		},
 		{
 			name: "positive",
