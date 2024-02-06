@@ -8,11 +8,17 @@ import (
 	"sync"
 
 	"github.com/dmad1989/urlcut/internal/logging"
-	"github.com/dmad1989/urlcut/internal/myjsons"
 )
 
 type conf interface {
 	GetFileStoreName() string
+}
+
+//easyjson:json
+type Item struct {
+	ID          int    `json:"uuid"`
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
 }
 
 type storage struct {
@@ -60,7 +66,7 @@ func (s *storage) Add(key, value string) error {
 	s.revertMap[value] = key
 	id := len(s.urlMap) + 1
 
-	if err := writeItem(s.fileName, myjsons.StoreItem{ID: id, ShortURL: key, OriginalURL: value}); err != nil {
+	if err := writeItem(s.fileName, Item{ID: id, ShortURL: key, OriginalURL: value}); err != nil {
 		return fmt.Errorf("fail write items in Add: %w", err)
 	}
 	return nil
@@ -113,11 +119,11 @@ func NewConsumer(filename string) (*Consumer, error) {
 	}, nil
 }
 
-func (c *Consumer) ReadItems() ([]myjsons.StoreItem, error) {
-	items := []myjsons.StoreItem{}
+func (c *Consumer) ReadItems() ([]Item, error) {
+	items := []Item{}
 	for c.scanner.Scan() {
 		data := c.scanner.Bytes()
-		item := myjsons.StoreItem{}
+		item := Item{}
 		err := item.UnmarshalJSON(data)
 		if err != nil {
 			return nil, fmt.Errorf("failed unmarshal from file: %w", err)
@@ -130,8 +136,8 @@ func (c *Consumer) ReadItems() ([]myjsons.StoreItem, error) {
 	return items, nil
 }
 
-func writeItem(fname string, item myjsons.StoreItem) error {
-	data, err := item.MarshalJSON()
+func writeItem(fname string, i Item) error {
+	data, err := i.MarshalJSON()
 	if err != nil {
 		return fmt.Errorf("fail marshal item: %w", err)
 	}

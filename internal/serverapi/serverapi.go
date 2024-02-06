@@ -8,10 +8,18 @@ import (
 	"strings"
 
 	"github.com/dmad1989/urlcut/internal/logging"
-	"github.com/dmad1989/urlcut/internal/myjsons"
 	"github.com/go-chi/chi/v5"
 )
 
+//easyjson:json
+type Request struct {
+	URL string `json:"url"`
+}
+
+//easyjson:json
+type Response struct {
+	Result string `json:"result"`
+}
 type app interface {
 	Cut(url string) (generated string, err error)
 	GetKeyByValue(value string) (res string, err error)
@@ -52,7 +60,7 @@ func (s server) Run() error {
 }
 
 func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
-	var reqJSON myjsons.Request
+	var reqJSON Request
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("cutterJsonHandler: content-type have to be application/json"))
 		return
@@ -74,7 +82,7 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusCreated)
-	respJSON := myjsons.Response{
+	respJSON := Response{
 		Result: fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code),
 	}
 	respb, err := respJSON.MarshalJSON()
