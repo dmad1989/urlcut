@@ -41,7 +41,7 @@ func WithLog(h http.Handler) http.Handler {
 			zap.String("uri", uri),
 			zap.String("method", method))
 		responseData := &responseData{
-			status: 0,
+			status: http.StatusOK,
 			size:   0,
 		}
 		lw := loggingResponseWriter{
