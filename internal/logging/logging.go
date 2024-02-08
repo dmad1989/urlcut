@@ -19,6 +19,7 @@ type (
 	loggingResponseWriter struct {
 		http.ResponseWriter
 		responseData *responseData
+		wroteHeader  bool
 	}
 )
 
@@ -41,7 +42,7 @@ func WithLog(h http.Handler) http.Handler {
 			zap.String("uri", uri),
 			zap.String("method", method))
 		responseData := &responseData{
-			status: http.StatusOK,
+			status: 0,
 			size:   0,
 		}
 		lw := loggingResponseWriter{
@@ -62,10 +63,16 @@ func WithLog(h http.Handler) http.Handler {
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	r.responseData.size += size
+	if !r.wroteHeader {
+		r.responseData.status = http.StatusOK
+	}
 	return size, err
 }
 
 func (r *loggingResponseWriter) WriteHeader(statusCode int) {
-	r.ResponseWriter.WriteHeader(statusCode)
-	r.responseData.status = statusCode
+	if !r.wroteHeader {
+		r.wroteHeader = true
+		r.ResponseWriter.WriteHeader(statusCode)
+		r.responseData.status = statusCode
+	}
 }
