@@ -31,6 +31,7 @@ type TestConfig struct {
 	url           string
 	shortAddress  string
 	fileStoreName string
+	dbConnName    string
 }
 
 var tconf *TestConfig
@@ -44,6 +45,9 @@ func (c TestConfig) GetShortAddress() string {
 }
 func (c TestConfig) GetFileStoreName() string {
 	return c.fileStoreName
+}
+func (c TestConfig) GetDbConnName() string {
+	return c.dbConnName
 }
 
 func initEnv() (serv *server, testserver *httptest.Server) {

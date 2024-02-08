@@ -1,6 +1,7 @@
 package serverapi
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,6 +24,7 @@ type Response struct {
 type app interface {
 	Cut(url string) (generated string, err error)
 	GetKeyByValue(value string) (res string, err error)
+	PingDB(context.Context) error
 }
 
 type conf interface {
@@ -47,6 +49,7 @@ func (s server) initHandlers() {
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
 	s.mux.Post("/api/shorten", s.cutterJSONHandler)
+	s.mux.Get("/ping", s.pingHandler)
 }
 
 func (s server) Run() error {
@@ -163,4 +166,14 @@ func gzipMiddleware(h http.Handler) http.Handler {
 
 		h.ServeHTTP(nextW, r)
 	})
+}
+
+func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
+	err := s.cutterApp.PingDB(context.Background())
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(fmt.Errorf("ping failed: %w", err).Error()))
+		return
+	}
+	res.WriteHeader(http.StatusOK)
 }

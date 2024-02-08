@@ -18,6 +18,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	if storage.Database != nil {
+		defer storage.Database.CloseDB()
+	}
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
 	err = server.Run()

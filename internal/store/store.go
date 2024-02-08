@@ -2,6 +2,7 @@ package store
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,12 @@ import (
 
 type conf interface {
 	GetFileStoreName() string
+	GetDbConnName() string
+}
+
+type db interface {
+	Ping(context.Context) error
+	CloseDB() error
 }
 
 //easyjson:json
@@ -26,6 +33,7 @@ type storage struct {
 	urlMap    map[string]string
 	revertMap map[string]string
 	fileName  string
+	Database  db
 }
 
 func New(c conf) (*storage, error) {
@@ -37,6 +45,13 @@ func New(c conf) (*storage, error) {
 		urlMap:    make(map[string]string),
 		revertMap: make(map[string]string),
 	}
+	if c.GetDbConnName() != "" {
+		db, err := initDB(c.GetDbConnName())
+		if err != nil || db.db == nil {
+			return nil, fmt.Errorf("fail to create DB storage: %w", err)
+		}
+		res.Database = db
+	}
 
 	if err := createIfNeeded(fp, fn); err != nil {
 		return nil, fmt.Errorf("fail to create storage: %w", err)
@@ -47,6 +62,13 @@ func New(c conf) (*storage, error) {
 	}
 
 	return &res, nil
+}
+
+func (s *storage) PingDB(ctx context.Context) error {
+	if s.Database == nil {
+		return fmt.Errorf("db conn is nil")
+	}
+	return s.Database.Ping(ctx)
 }
 
 func (s *storage) Get(key string) (string, error) {

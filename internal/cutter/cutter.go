@@ -1,6 +1,7 @@
 package cutter
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -10,6 +11,7 @@ type store interface {
 	Get(key string) (string, error)
 	Add(key, value string) error
 	GetKey(value string) (res string, err error)
+	PingDB(context.Context) error
 }
 
 type App struct {
@@ -46,6 +48,10 @@ func (a *App) GetKeyByValue(value string) (res string, err error) {
 		return "", fmt.Errorf("getKeyByValue: while getting value by key:%s: %w", value, err)
 	}
 	return
+}
+
+func (a *App) PingDB(ctx context.Context) error {
+	return a.storage.PingDB(ctx)
 }
 
 func randStringBytes(n int) (string, error) {
