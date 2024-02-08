@@ -1,6 +1,11 @@
 package main
 
 import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/dbstore"
@@ -30,10 +35,11 @@ func main() {
 			panic(err)
 		}
 	}
-
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
-	err = server.Run()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	err = server.Run(ctx)
 	if err != nil {
 		panic(err)
 	}

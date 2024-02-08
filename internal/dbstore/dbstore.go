@@ -10,6 +10,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// todo общее значения для контекста таймаута
+
 type conf interface {
 	GetFileStoreName() string
 	GetDBConnName() string

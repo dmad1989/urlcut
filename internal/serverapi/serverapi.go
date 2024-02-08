@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -52,10 +53,18 @@ func (s server) initHandlers() {
 	s.mux.Get("/ping", s.pingHandler)
 }
 
-func (s server) Run() error {
+func (s server) Run(ctx context.Context) error {
 	defer logging.Log.Sync()
 	logging.Log.Infof("Server started at %s", s.config.GetURL())
-	err := http.ListenAndServe(s.config.GetURL(), s.mux)
+	httpServer := &http.Server{
+		Addr:    s.config.GetURL(),
+		Handler: s.mux,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
+	}
+
+	err := httpServer.ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("serverapi.Run: %w", err)
 	}
