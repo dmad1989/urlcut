@@ -3,6 +3,7 @@ package store
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +34,6 @@ type storage struct {
 	urlMap    map[string]string
 	revertMap map[string]string
 	fileName  string
-	Database  db
 }
 
 func New(c conf) (*storage, error) {
@@ -44,13 +44,6 @@ func New(c conf) (*storage, error) {
 		fileName:  fn,
 		urlMap:    make(map[string]string),
 		revertMap: make(map[string]string),
-	}
-	if c.GetDBConnName() != "" {
-		db, err := initDB(c.GetDBConnName())
-		if err != nil || db.db == nil {
-			return nil, fmt.Errorf("fail to create DB storage: %w", err)
-		}
-		res.Database = db
 	}
 
 	if err := createIfNeeded(fp, fn); err != nil {
@@ -64,14 +57,15 @@ func New(c conf) (*storage, error) {
 	return &res, nil
 }
 
-func (s *storage) PingDB(ctx context.Context) error {
-	if s.Database == nil {
-		return fmt.Errorf("db conn is nil")
-	}
-	return s.Database.Ping(ctx)
+func (s *storage) Ping(ctx context.Context) error {
+	return errors.New("unsupported store method")
 }
 
-func (s *storage) Get(key string) (string, error) {
+func (s *storage) CloseDB() error {
+	return errors.New("unsupported store method")
+}
+
+func (s *storage) Get(ctx context.Context, key string) (string, error) {
 	s.rw.RLock()
 	generated, isFound := s.urlMap[key]
 	s.rw.RUnlock()
@@ -81,7 +75,7 @@ func (s *storage) Get(key string) (string, error) {
 	return generated, nil
 }
 
-func (s *storage) Add(key, value string) error {
+func (s *storage) Add(ctx context.Context, key, value string) error {
 	s.rw.Lock()
 	defer s.rw.Unlock()
 	s.urlMap[key] = value
@@ -94,7 +88,7 @@ func (s *storage) Add(key, value string) error {
 	return nil
 }
 
-func (s *storage) GetKey(value string) (string, error) {
+func (s *storage) GetKey(ctx context.Context, value string) (string, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
 	res, isFound := s.revertMap[value]
@@ -108,7 +102,7 @@ func (s *storage) readFromFile() error {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
 
-	c, err := NewConsumer(s.fileName)
+	c, err := newConsumer(s.fileName)
 	if err != nil {
 		return fmt.Errorf("failed to open file for read: %w", err)
 	}
@@ -129,7 +123,7 @@ type Consumer struct {
 	scanner *bufio.Scanner
 }
 
-func NewConsumer(filename string) (*Consumer, error) {
+func newConsumer(filename string) (*Consumer, error) {
 	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)

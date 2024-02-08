@@ -7,23 +7,24 @@ import (
 	"fmt"
 )
 
-type store interface {
-	Get(key string) (string, error)
-	Add(key, value string) error
-	GetKey(value string) (res string, err error)
-	PingDB(context.Context) error
+type Store interface {
+	Get(ctx context.Context, key string) (string, error)
+	Add(ctx context.Context, key, value string) error
+	GetKey(ctx context.Context, value string) (res string, err error)
+	Ping(context.Context) error
+	CloseDB() error
 }
 
 type App struct {
-	storage store
+	storage Store
 }
 
-func New(s store) *App {
+func New(s Store) *App {
 	return &App{storage: s}
 }
 
-func (a *App) Cut(url string) (generated string, err error) {
-	generated, err = a.storage.Get(url)
+func (a *App) Cut(ctx context.Context, url string) (generated string, err error) {
+	generated, err = a.storage.Get(ctx, url)
 	if err != nil {
 		return "", fmt.Errorf("cut: getting value by key %s from storage : %w", url, err)
 	}
@@ -35,15 +36,15 @@ func (a *App) Cut(url string) (generated string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("cut: while generating path: %w", err)
 	}
-	err = a.storage.Add(url, generated)
+	err = a.storage.Add(ctx, url, generated)
 	if err != nil {
 		return "", fmt.Errorf("cut: failed to add path: %w", err)
 	}
 	return
 }
 
-func (a *App) GetKeyByValue(value string) (res string, err error) {
-	res, err = a.storage.GetKey(value)
+func (a *App) GetKeyByValue(ctx context.Context, value string) (res string, err error) {
+	res, err = a.storage.GetKey(ctx, value)
 	if err != nil {
 		return "", fmt.Errorf("getKeyByValue: while getting value by key:%s: %w", value, err)
 	}
@@ -51,7 +52,7 @@ func (a *App) GetKeyByValue(value string) (res string, err error) {
 }
 
 func (a *App) PingDB(ctx context.Context) error {
-	return a.storage.PingDB(ctx)
+	return a.storage.Ping(ctx)
 }
 
 func randStringBytes(n int) (string, error) {

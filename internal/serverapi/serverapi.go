@@ -22,8 +22,8 @@ type Response struct {
 	Result string `json:"result"`
 }
 type app interface {
-	Cut(url string) (generated string, err error)
-	GetKeyByValue(value string) (res string, err error)
+	Cut(cxt context.Context, url string) (generated string, err error)
+	GetKeyByValue(cxt context.Context, value string) (res string, err error)
 	PingDB(context.Context) error
 }
 
@@ -77,7 +77,7 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 		responseError(res, fmt.Errorf("cutterJsonHandler: decoding request: %w", err))
 		return
 	}
-	code, err := s.cutterApp.Cut(reqJSON.URL)
+	code, err := s.cutterApp.Cut(req.Context(), reqJSON.URL)
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterJsonHandler: getting code for url: %w", err))
 		return
@@ -114,7 +114,7 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	code, err := s.cutterApp.Cut(string(body))
+	code, err := s.cutterApp.Cut(req.Context(), string(body))
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterHandler: getting code for url: %w", err))
 		return
@@ -132,7 +132,7 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	redirectURL, err := s.cutterApp.GetKeyByValue(path)
+	redirectURL, err := s.cutterApp.GetKeyByValue(req.Context(), path)
 	if err != nil {
 		responseError(res, fmt.Errorf("redirectHandler: fetching url fo redirect: %w", err))
 		return
@@ -169,7 +169,7 @@ func gzipMiddleware(h http.Handler) http.Handler {
 }
 
 func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
-	err := s.cutterApp.PingDB(context.Background())
+	err := s.cutterApp.PingDB(req.Context())
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(fmt.Errorf("ping failed: %w", err).Error()))
