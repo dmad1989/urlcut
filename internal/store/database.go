@@ -8,22 +8,22 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type DbStore struct {
+type DBStore struct {
 	db *sql.DB
 }
 
-func initDB(dbSourceName string) (DbStore, error) {
+func initDB(dbSourceName string) (DBStore, error) {
 	db, err := sql.Open("pgx", dbSourceName)
 	if err != nil {
-		return DbStore{db: nil}, fmt.Errorf("failed to conncet to DB %s, cause by %w", dbSourceName, err)
+		return DBStore{db: nil}, fmt.Errorf("failed to conncet to DB %s, cause by %w", dbSourceName, err)
 	}
 	db.SetConnMaxLifetime(0)
 	db.SetMaxIdleConns(50)
 	db.SetMaxOpenConns(50)
-	return DbStore{db: db}, nil
+	return DBStore{db: db}, nil
 }
 
-func (s DbStore) Ping(ctx context.Context) error {
+func (s DBStore) Ping(ctx context.Context) error {
 	if s.db == nil {
 		return fmt.Errorf("db is nil")
 	}
@@ -35,7 +35,7 @@ func (s DbStore) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s DbStore) CloseDB() error {
+func (s DBStore) CloseDB() error {
 	if s.db == nil {
 		return fmt.Errorf("db is nil")
 	}

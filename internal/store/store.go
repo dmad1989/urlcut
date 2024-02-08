@@ -13,7 +13,7 @@ import (
 
 type conf interface {
 	GetFileStoreName() string
-	GetDbConnName() string
+	GetDBConnName() string
 }
 
 type db interface {
@@ -45,8 +45,8 @@ func New(c conf) (*storage, error) {
 		urlMap:    make(map[string]string),
 		revertMap: make(map[string]string),
 	}
-	if c.GetDbConnName() != "" {
-		db, err := initDB(c.GetDbConnName())
+	if c.GetDBConnName() != "" {
+		db, err := initDB(c.GetDBConnName())
 		if err != nil || db.db == nil {
 			return nil, fmt.Errorf("fail to create DB storage: %w", err)
 		}

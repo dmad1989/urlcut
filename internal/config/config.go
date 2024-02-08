@@ -72,6 +72,6 @@ func (c Config) GetFileStoreName() string {
 	return c.fileStoreName
 }
 
-func (c Config) GetDbConnName() string {
+func (c Config) GetDBConnName() string {
 	return c.dbConnName
 }

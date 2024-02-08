@@ -46,7 +46,7 @@ func (c TestConfig) GetShortAddress() string {
 func (c TestConfig) GetFileStoreName() string {
 	return c.fileStoreName
 }
-func (c TestConfig) GetDbConnName() string {
+func (c TestConfig) GetDBConnName() string {
 	return c.dbConnName
 }
 
