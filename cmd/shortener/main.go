@@ -13,6 +13,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer logging.Log.Sync()
 	conf := config.ParseConfig()
 	storage, err := store.New(conf)
 	if err != nil {

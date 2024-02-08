@@ -34,7 +34,6 @@ func Initilize() error {
 
 func WithLog(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
-		defer Log.Sync()
 		start := time.Now()
 		uri := r.RequestURI
 		method := r.Method
@@ -49,6 +48,7 @@ func WithLog(h http.Handler) http.Handler {
 			ResponseWriter: w,
 			responseData:   responseData,
 		}
+		defer Log.Sync()
 		h.ServeHTTP(&lw, r)
 		duration := time.Since(start)
 		Log.Infow("Response",

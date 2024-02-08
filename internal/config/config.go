@@ -35,7 +35,6 @@ func init() {
 
 func ParseConfig() Config {
 	flag.Parse()
-	defer logging.Log.Sync()
 	if os.Getenv("SERVER_ADDRESS") != "" {
 		conf.url = os.Getenv("SERVER_ADDRESS")
 	}
