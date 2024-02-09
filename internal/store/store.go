@@ -36,7 +36,7 @@ type storage struct {
 	fileName  string
 }
 
-func New(c conf) (*storage, error) {
+func New(ctx context.Context, c conf) (*storage, error) {
 	fn := filepath.Base(c.GetFileStoreName())
 	fp := filepath.Dir(c.GetFileStoreName())
 	res := storage{
@@ -65,7 +65,7 @@ func (s *storage) CloseDB() error {
 	return errors.New("unsupported store method")
 }
 
-func (s *storage) Get(ctx context.Context, key string) (string, error) {
+func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 	s.rw.RLock()
 	generated, isFound := s.urlMap[key]
 	s.rw.RUnlock()
@@ -75,20 +75,20 @@ func (s *storage) Get(ctx context.Context, key string) (string, error) {
 	return generated, nil
 }
 
-func (s *storage) Add(ctx context.Context, key, value string) error {
+func (s *storage) Add(ctx context.Context, original, short string) error {
 	s.rw.Lock()
 	defer s.rw.Unlock()
-	s.urlMap[key] = value
-	s.revertMap[value] = key
+	s.urlMap[original] = short
+	s.revertMap[short] = original
 	id := len(s.urlMap) + 1
 
-	if err := writeItem(s.fileName, Item{ID: id, ShortURL: key, OriginalURL: value}); err != nil {
-		return fmt.Errorf("fail write items in Add: %w", err)
+	if err := writeItem(s.fileName, Item{ID: id, ShortURL: short, OriginalURL: original}); err != nil {
+		return fmt.Errorf("store.add: write items: %w", err)
 	}
 	return nil
 }
 
-func (s *storage) GetKey(ctx context.Context, value string) (string, error) {
+func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
 	res, isFound := s.revertMap[value]

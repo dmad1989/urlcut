@@ -3,6 +3,7 @@ package serverapi
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,7 +57,7 @@ func initEnv() (serv *server, testserver *httptest.Server) {
 		shortAddress:  "http://localhost:8080/",
 		fileStoreName: "/tmp/short-url-db.json"}
 
-	storage, err := store.New(tconf)
+	storage, err := store.New(context.Background(), tconf)
 	if err != nil {
 		panic(err)
 	}

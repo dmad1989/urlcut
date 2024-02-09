@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	err := logging.Initilize()
 	if err != nil {
 		panic(err)
@@ -24,20 +25,20 @@ func main() {
 
 	var storage cutter.Store
 	if conf.GetDBConnName() != "" {
-		storage, err = dbstore.New(conf)
+		storage, err = dbstore.New(ctx, conf)
 		if err != nil {
 			panic(err)
 		}
 		defer storage.CloseDB()
 	} else {
-		storage, err = store.New(conf)
+		storage, err = store.New(ctx, conf)
 		if err != nil {
 			panic(err)
 		}
 	}
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	err = server.Run(ctx)
 	if err != nil {
