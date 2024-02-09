@@ -62,7 +62,7 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	res := storage{rw: sync.RWMutex{},
 		db: db}
 
-	res.Ping(ctx)
+	err = res.Ping(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("check DB after create: %w", err)
 	}
