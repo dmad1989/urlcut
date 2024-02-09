@@ -1,6 +1,8 @@
 package serverapi
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,11 +22,15 @@ const (
 	postResponsePattern  = `^http:\/\/localhost:8080\/.+`
 	targetURL            = "http://localhost:8080/"
 	positiveURL          = "http://ya.ru"
+	JSONBodyRequest      = `{"url":"http://ya.ru/"}`
+	JSONPatternResponse  = `^{"result":"http:\/\/%s\/.+`
+	JSONPathPattern      = "%s/api/shorten"
 )
 
 type TestConfig struct {
-	url          string
-	shortAddress string
+	url           string
+	shortAddress  string
+	fileStoreName string
 }
 
 var tconf *TestConfig
@@ -36,13 +42,20 @@ func (c TestConfig) GetURL() string {
 func (c TestConfig) GetShortAddress() string {
 	return c.shortAddress
 }
+func (c TestConfig) GetFileStoreName() string {
+	return c.fileStoreName
+}
 
 func initEnv() (serv *server, testserver *httptest.Server) {
 	tconf = &TestConfig{
-		url:          ":8080",
-		shortAddress: "http://localhost:8080/"}
+		url:           ":8080",
+		shortAddress:  "http://localhost:8080/",
+		fileStoreName: "/tmp/short-url-db.json"}
 
-	storage := store.New()
+	storage, err := store.New(tconf)
+	if err != nil {
+		panic(err)
+	}
 	cut := cutter.New(storage)
 	serv = New(cut, tconf)
 	testserver = httptest.NewServer(serv.mux)
@@ -53,6 +66,7 @@ func initEnv() (serv *server, testserver *httptest.Server) {
 type postRequest struct {
 	httpMethod string
 	body       io.Reader
+	jsonHeader bool
 }
 
 type expectedPostResponse struct {
@@ -163,9 +177,16 @@ func TestCutterHandler(t *testing.T) {
 }
 
 func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wantedMessage string) {
-	resBody, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	err = res.Body.Close()
+	var resBody string
+	if res.Header.Get("Content-Encoding") == "gzip" {
+		resBody = unzipBody(t, res.Body)
+	} else {
+		b, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		resBody = string(b)
+
+	}
+	err := res.Body.Close()
 	require.NoError(t, err)
 	if res.StatusCode == http.StatusCreated {
 		assert.Regexpf(t, regexp.MustCompile(wantedPattern), string(resBody), "body must be like %s", wantedPattern)
@@ -227,7 +248,7 @@ func TestRedirectHandler(t *testing.T) {
 			},
 			expResp: expectedResponse{
 				code:        http.StatusBadRequest,
-				bodyMessage: "redirectHandler: fetching url fo redirect: GetKeyByValue: while getting value by key:C222: no data found in urlMap for value C222"},
+				bodyMessage: "redirectHandler: fetching url fo redirect: getKeyByValue: while getting value by key:C222: no data found in urlMap for value C222"},
 		},
 		{
 			name: "positive",
@@ -262,4 +283,105 @@ func TestRedirectHandler(t *testing.T) {
 			assert.Equal(t, tt.expResp.bodyMessage, string(resBody))
 		})
 	}
+}
+
+func TestCutterJSONHandler(t *testing.T) {
+	serv, testserver := initEnv()
+	defer testserver.Close()
+	tests := []struct {
+		name    string
+		request postRequest
+		expResp expectedPostResponse
+	}{{
+		name: "negative - wrong method",
+		request: postRequest{
+			httpMethod: http.MethodGet,
+			body:       strings.NewReader("")},
+		expResp: expectedPostResponse{
+			code: http.StatusMethodNotAllowed},
+	},
+		{
+			name: "negative - no json header",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				body:       strings.NewReader("JSONBodyRequest")},
+			expResp: expectedPostResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: `cutterJsonHandler: content-type have to be application/json`},
+		},
+		{
+			name: "negative - empty Body",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				jsonHeader: true,
+				body:       strings.NewReader("")},
+			expResp: expectedPostResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: "cutterJsonHandler: decoding request: EOF"},
+		},
+
+		{
+			name: "positive",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				jsonHeader: true,
+				body:       strings.NewReader(JSONBodyRequest)},
+			expResp: expectedPostResponse{
+				code:        http.StatusCreated,
+				bodyPattern: fmt.Sprintf(JSONPatternResponse, serv.config.GetShortAddress()[7:]),
+				bodyMessage: ""},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := http.NewRequest(tt.request.httpMethod, fmt.Sprintf(JSONPathPattern, testserver.URL), tt.request.body)
+			if tt.request.jsonHeader {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			require.NoError(t, err)
+			res, err := testserver.Client().Do(request)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
+			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
+		})
+	}
+}
+func TestCompression(t *testing.T) {
+	_, testserver := initEnv()
+	defer testserver.Close()
+	t.Run("sends_gzip", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		zb := gzip.NewWriter(buf)
+		_, err := zb.Write([]byte(JSONBodyRequest))
+		require.NoError(t, err)
+		err = zb.Close()
+		require.NoError(t, err)
+		r, err := http.NewRequest("POST", fmt.Sprintf(JSONPathPattern, testserver.URL), buf)
+		require.NoError(t, err)
+
+		r.Header.Set("Content-Encoding", "gzip")
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Accept-Encoding", "gzip")
+
+		resp, err := testserver.Client().Do(r)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+		defer resp.Body.Close()
+
+		_, err = io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+	})
+
+}
+
+func unzipBody(t *testing.T, body io.ReadCloser) string {
+	zr, err := gzip.NewReader(body)
+	require.NoError(t, err)
+	b, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	return string(b)
 }

@@ -5,10 +5,21 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
+	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
 )
 
+//easyjson:json
+type Request struct {
+	URL string `json:"url"`
+}
+
+//easyjson:json
+type Response struct {
+	Result string `json:"result"`
+}
 type app interface {
 	Cut(url string) (generated string, err error)
 	GetKeyByValue(value string) (res string, err error)
@@ -32,16 +43,54 @@ func New(cutApp app, config conf) *server {
 }
 
 func (s server) initHandlers() {
+	s.mux.Use(logging.WithLog, gzipMiddleware)
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
+	s.mux.Post("/api/shorten", s.cutterJSONHandler)
 }
 
 func (s server) Run() error {
+	defer logging.Log.Sync()
+	logging.Log.Infof("Server started at %s", s.config.GetURL())
 	err := http.ListenAndServe(s.config.GetURL(), s.mux)
 	if err != nil {
 		return fmt.Errorf("serverapi.Run: %w", err)
 	}
 	return nil
+}
+
+func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
+	var reqJSON Request
+	if req.Header.Get("Content-Type") != "application/json" {
+		responseError(res, fmt.Errorf("cutterJsonHandler: content-type have to be application/json"))
+		return
+	}
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		responseError(res, fmt.Errorf("cutterJsonHandler: reading request body: %w", err))
+		return
+	}
+	if err := reqJSON.UnmarshalJSON(body); err != nil {
+		responseError(res, fmt.Errorf("cutterJsonHandler: decoding request: %w", err))
+		return
+	}
+	code, err := s.cutterApp.Cut(reqJSON.URL)
+	if err != nil {
+		responseError(res, fmt.Errorf("cutterJsonHandler: getting code for url: %w", err))
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusCreated)
+	respJSON := Response{
+		Result: fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code),
+	}
+	respb, err := respJSON.MarshalJSON()
+	if err != nil {
+		responseError(res, fmt.Errorf("cutterJsonHandler: encoding response: %w", err))
+		return
+	}
+	res.Write(respb)
 }
 
 func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
@@ -91,4 +140,27 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 func responseError(res http.ResponseWriter, err error) {
 	res.WriteHeader(http.StatusBadRequest)
 	res.Write([]byte(err.Error()))
+}
+
+func gzipMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextW := w
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			cr, err := newCompressReader(r.Body)
+			if err != nil {
+				responseError(w, fmt.Errorf("gzip: fail to read compressed body: %w", err))
+				return
+			}
+			r.Body = cr
+			defer cr.Close()
+		}
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header()
+			cw := newCompressWriter(w)
+			nextW = cw
+			defer cw.Close()
+		}
+
+		h.ServeHTTP(nextW, r)
+	})
 }

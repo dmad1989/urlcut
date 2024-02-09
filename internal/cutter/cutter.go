@@ -8,7 +8,7 @@ import (
 
 type store interface {
 	Get(key string) (string, error)
-	Add(key, value string)
+	Add(key, value string) error
 	GetKey(value string) (res string, err error)
 }
 
@@ -23,7 +23,7 @@ func New(s store) *App {
 func (a *App) Cut(url string) (generated string, err error) {
 	generated, err = a.storage.Get(url)
 	if err != nil {
-		return "", fmt.Errorf("Cut: getting value by key %s from storage : %w", url, err)
+		return "", fmt.Errorf("cut: getting value by key %s from storage : %w", url, err)
 	}
 
 	if generated != "" {
@@ -31,16 +31,19 @@ func (a *App) Cut(url string) (generated string, err error) {
 	}
 	generated, err = randStringBytes(8)
 	if err != nil {
-		return "", fmt.Errorf("Cut: while generating path: %w", err)
+		return "", fmt.Errorf("cut: while generating path: %w", err)
 	}
-	a.storage.Add(url, generated)
+	err = a.storage.Add(url, generated)
+	if err != nil {
+		return "", fmt.Errorf("cut: failed to add path: %w", err)
+	}
 	return
 }
 
 func (a *App) GetKeyByValue(value string) (res string, err error) {
 	res, err = a.storage.GetKey(value)
 	if err != nil {
-		return "", fmt.Errorf("GetKeyByValue: while getting value by key:%s: %w", value, err)
+		return "", fmt.Errorf("getKeyByValue: while getting value by key:%s: %w", value, err)
 	}
 	return
 }
