@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	defHost          = "localhost:8080"
-	defShortHost     = "http://localhost:8080"
-	defFileStorageDB = "/tmp/short-url-db.json"
+	defHost      = "localhost:8080"
+	defShortHost = "http://localhost:8080"
+	// defFileStorageDB = "/tmp/short-url-db.json"
 	// defDBDSN=
 )
 
@@ -29,7 +29,7 @@ type Config struct {
 func init() {
 	flag.StringVar(&conf.url, "a", defHost, "server URL format host:port, :port")
 	flag.StringVar(&conf.shortAddress, "b", defShortHost, "Address for short url")
-	flag.StringVar(&conf.fileStoreName, "f", defFileStorageDB, "file name for storage")
+	flag.StringVar(&conf.fileStoreName, "f", "", "file name for storage")
 	flag.StringVar(&conf.dbConnName, "d", "", "database connection addres, format host=? port=? user=? password=? dbname=? sslmode=?")
 }
 

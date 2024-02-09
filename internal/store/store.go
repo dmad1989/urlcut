@@ -37,8 +37,12 @@ type storage struct {
 }
 
 func New(ctx context.Context, c conf) (*storage, error) {
-	fn := filepath.Base(c.GetFileStoreName())
-	fp := filepath.Dir(c.GetFileStoreName())
+	fn := ""
+	fp := ""
+	if c.GetFileStoreName() != "" {
+		fn = filepath.Base(c.GetFileStoreName())
+		fp = filepath.Dir(c.GetFileStoreName())
+	}
 	res := storage{
 		rw:        sync.RWMutex{},
 		fileName:  fn,
@@ -46,14 +50,15 @@ func New(ctx context.Context, c conf) (*storage, error) {
 		revertMap: make(map[string]string),
 	}
 
-	if err := createIfNeeded(fp, fn); err != nil {
-		return nil, fmt.Errorf("create file storage: %w", err)
-	}
+	if fn != "" {
+		if err := createIfNeeded(fp, fn); err != nil {
+			return nil, fmt.Errorf("create file storage: %w", err)
+		}
 
-	if err := res.readFromFile(); err != nil {
-		return nil, fmt.Errorf("read from file storage: %w", err)
+		if err := res.readFromFile(); err != nil {
+			return nil, fmt.Errorf("read from file storage: %w", err)
+		}
 	}
-
 	return &res, nil
 }
 
@@ -80,10 +85,11 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	defer s.rw.Unlock()
 	s.urlMap[original] = short
 	s.revertMap[short] = original
-	id := len(s.urlMap) + 1
-
-	if err := writeItem(s.fileName, Item{ID: id, ShortURL: short, OriginalURL: original}); err != nil {
-		return fmt.Errorf("store.add: write items: %w", err)
+	if s.fileName != "" {
+		id := len(s.urlMap) + 1
+		if err := writeItem(s.fileName, Item{ID: id, ShortURL: short, OriginalURL: original}); err != nil {
+			return fmt.Errorf("store.add: write items: %w", err)
+		}
 	}
 	return nil
 }
