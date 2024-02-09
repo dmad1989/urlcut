@@ -11,6 +11,7 @@ import (
 
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/sync/errgroup"
 )
 
 //easyjson:json
@@ -63,10 +64,21 @@ func (s server) Run(ctx context.Context) error {
 			return ctx
 		},
 	}
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		err := httpServer.ListenAndServe()
+		if err != nil {
+			return fmt.Errorf("serverapi.Run: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		<-gCtx.Done()
+		return httpServer.Shutdown(context.Background())
+	})
 
-	err := httpServer.ListenAndServe()
-	if err != nil {
-		return fmt.Errorf("serverapi.Run: %w", err)
+	if err := g.Wait(); err != nil {
+		fmt.Printf("exit reason: %s \n", err)
 	}
 	return nil
 }
