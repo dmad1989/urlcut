@@ -47,11 +47,11 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	}
 
 	if err := createIfNeeded(fp, fn); err != nil {
-		return nil, fmt.Errorf("fail to create storage: %w", err)
+		return nil, fmt.Errorf("create file storage: %w", err)
 	}
 
 	if err := res.readFromFile(); err != nil {
-		return nil, fmt.Errorf("fail to read from storage: %w", err)
+		return nil, fmt.Errorf("read from file storage: %w", err)
 	}
 
 	return &res, nil
@@ -104,11 +104,11 @@ func (s *storage) readFromFile() error {
 
 	c, err := newConsumer(s.fileName)
 	if err != nil {
-		return fmt.Errorf("failed to open file for read: %w", err)
+		return fmt.Errorf("readFromFile: open file %w", err)
 	}
 	items, err := c.ReadItems()
 	if err != nil {
-		return fmt.Errorf("failed to read from file: %w", err)
+		return fmt.Errorf("readFromFile: read file: %w", err)
 	}
 	for _, item := range items {
 		s.urlMap[item.ShortURL] = item.OriginalURL
@@ -126,7 +126,7 @@ type Consumer struct {
 func newConsumer(filename string) (*Consumer, error) {
 	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, fmt.Errorf("newConsumer: open file: %w", err)
 	}
 
 	return &Consumer{
@@ -142,7 +142,7 @@ func (c *Consumer) ReadItems() ([]Item, error) {
 		item := Item{}
 		err := item.UnmarshalJSON(data)
 		if err != nil {
-			return nil, fmt.Errorf("failed unmarshal from file: %w", err)
+			return nil, fmt.Errorf("unmarshal from file: %w", err)
 		}
 		items = append(items, item)
 	}
@@ -155,18 +155,18 @@ func (c *Consumer) ReadItems() ([]Item, error) {
 func writeItem(fname string, i Item) error {
 	data, err := i.MarshalJSON()
 	if err != nil {
-		return fmt.Errorf("fail marshal item: %w", err)
+		return fmt.Errorf("marshal item: %w", err)
 	}
 
 	file, err := os.OpenFile(fname, os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		return fmt.Errorf("failed to open file to write: %w", err)
+		return fmt.Errorf("writeItem: open file: %w", err)
 	}
 	defer file.Close()
 	data = append(data, '\n')
 	_, err = file.Write(data)
 	if err != nil {
-		return fmt.Errorf("failed to write in file: %w", err)
+		return fmt.Errorf("writeItem: write in file: %w", err)
 	}
 	return nil
 }
@@ -175,18 +175,18 @@ func createIfNeeded(path string, fileName string) error {
 	defer logging.Log.Sync()
 	err := os.MkdirAll(path, 0750)
 	if err != nil {
-		return fmt.Errorf("fail mkdir: %w", err)
+		return fmt.Errorf("mkdir: %w", err)
 	}
 	logging.Log.Debugf("dir was created: %s ", path)
 	err = os.Chdir(path)
 	if err != nil {
-		return fmt.Errorf("fail chdir: %w", err)
+		return fmt.Errorf("chdir: %w", err)
 	}
 
 	if _, err := os.Stat(fileName); os.IsNotExist(err) {
 		file, err := os.Create(fileName)
 		if err1 := file.Close(); err1 != nil && err == nil {
-			err = fmt.Errorf("fail create file: %w", err1)
+			err = fmt.Errorf("create file: %w", err1)
 		}
 		if err == nil {
 			logging.Log.Debugf("file was created: %s (path %s)", fileName, path)

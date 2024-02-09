@@ -89,14 +89,14 @@ func (s *storage) Ping(ctx context.Context) error {
 	defer s.rw.RUnlock()
 	err := s.db.PingContext(ctx)
 	if err != nil {
-		return fmt.Errorf("fail to ping db: %w", err)
+		return fmt.Errorf("ping db: %w", err)
 	}
 	return nil
 }
 
 func (s *storage) CloseDB() error {
 	if err := s.db.Close(); err != nil {
-		return fmt.Errorf("failed to close db conn: %w", err)
+		return fmt.Errorf("close db conn: %w", err)
 	}
 	return nil
 }

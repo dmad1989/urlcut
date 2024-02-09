@@ -38,7 +38,7 @@ func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
 	}
 	err = a.storage.Add(ctx, url, short)
 	if err != nil {
-		return "", fmt.Errorf("cut: failed to add path: %w", err)
+		return "", fmt.Errorf("cut: add path: %w", err)
 	}
 	return
 }

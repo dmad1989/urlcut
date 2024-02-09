@@ -172,7 +172,7 @@ func gzipMiddleware(h http.Handler) http.Handler {
 		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
-				responseError(w, fmt.Errorf("gzip: fail to read compressed body: %w", err))
+				responseError(w, fmt.Errorf("gzip: read compressed body: %w", err))
 				return
 			}
 			r.Body = cr
@@ -193,7 +193,7 @@ func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
 	err := s.cutterApp.PingDB(req.Context())
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
-		res.Write([]byte(fmt.Errorf("ping failed: %w", err).Error()))
+		res.Write([]byte(fmt.Errorf("pingHandler : %w", err).Error()))
 		return
 	}
 	res.WriteHeader(http.StatusOK)
