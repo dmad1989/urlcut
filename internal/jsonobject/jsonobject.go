@@ -13,8 +13,8 @@ type Batch []BatchItem
 //easyjson:json
 type BatchItem struct {
 	ID          string `json:"correlation_id"`
-	OriginalURL string `json:"original_url,omitempty,published_at"`
-	ShortURL    string `json:"short_url,omitempty,published_at"`
+	OriginalURL string `json:"original_url,omitempty"`
+	ShortURL    string `json:"short_url,omitempty"`
 }
 
 //easyjson:json
