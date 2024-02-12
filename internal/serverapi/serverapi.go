@@ -217,6 +217,10 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 		return
 	}
 
+	for i := 0; i < len(*batchResponse); i++ {
+		(*batchResponse)[i].ShortURL = fmt.Sprintf("%s/%s", s.config.GetShortAddress(), (*batchResponse)[i].ShortURL)
+	}
+
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusCreated)
 	respb, err := batchResponse.MarshalJSON()
