@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+
+	"github.com/dmad1989/urlcut/internal/jsonobject"
 )
 
 type Store interface {
@@ -13,6 +15,7 @@ type Store interface {
 	GetOriginalURL(ctx context.Context, value string) (res string, err error)
 	Ping(context.Context) error
 	CloseDB() error
+	UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error)
 }
 
 type App struct {
@@ -53,6 +56,21 @@ func (a *App) GetKeyByValue(ctx context.Context, value string) (res string, err 
 
 func (a *App) PingDB(ctx context.Context) error {
 	return a.storage.Ping(ctx)
+}
+
+func (a *App) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error) {
+	for i := 0; i < len(*batch); i++ {
+		short, err := randStringBytes(8)
+		if err != nil {
+			return batch, fmt.Errorf("uploadBatch: %w", err)
+		}
+		(*batch)[i].ShortURL = short
+	}
+	batch, err := a.storage.UploadBatch(ctx, batch)
+	if err != nil {
+		return batch, fmt.Errorf("UploadBact: %w", err)
+	}
+	return batch, nil
 }
 
 func randStringBytes(n int) (string, error) {

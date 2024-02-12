@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dmad1989/urlcut/internal/jsonobject"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -20,7 +21,10 @@ const (
 		CONSTRAINT urls_pkey PRIMARY KEY ("ID")
 	)	
 	TABLESPACE pg_default;	
-	ALTER TABLE IF EXISTS public.urls OWNER to postgres;`
+	ALTER TABLE IF EXISTS public.urls OWNER to postgres;
+	CREATE INDEX short_url ON urls (short_url);
+    CREATE INDEX original_url ON urls (original_url);
+	`
 	sqlChechTableExists = `SELECT EXISTS (
 		SELECT FROM 
 			information_schema.tables 
@@ -32,7 +36,8 @@ const (
 	sqlGetShortURL    = "select  u.short_url  from urls u where u.original_url  = $1"
 	sqlGetOriginalURL = "select  u.original_url  from urls u where u.short_url  = $1"
 	sqlInsert         = "INSERT INTO public.urls (short_url, original_url) VALUES( $1, $2)"
-	timeout           = time.Duration(time.Second * 10)
+
+	timeout = time.Duration(time.Second * 10)
 )
 
 // todo общее значения для контекста таймаута
@@ -148,4 +153,45 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 	default:
 		return sURL, nil
 	}
+}
+
+func (s *storage) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error) {
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	tx, err := s.db.BeginTx(tctx, nil)
+	if err != nil {
+		return batch, fmt.Errorf("upload batch, transation begin: %w", err)
+	}
+	defer tx.Commit()
+
+	stmtInsert, err := tx.PrepareContext(tctx, sqlInsert)
+	if err != nil {
+		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
+	}
+	defer stmtInsert.Close()
+	stmtCheck, err := s.db.PrepareContext(tctx, sqlGetShortURL)
+	if err != nil {
+		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
+	}
+	defer stmtCheck.Close()
+	for i := 0; i < len(*batch); i++ {
+		var dbOriginalURL string
+		err := stmtCheck.QueryRowContext(tctx, (*batch)[i].OriginalURL).Scan(&dbOriginalURL)
+		switch {
+		case err == sql.ErrNoRows:
+			if _, err = stmtInsert.ExecContext(tctx, (*batch)[i].ShortURL, (*batch)[i].OriginalURL); err != nil {
+				tx.Rollback()
+				return batch, fmt.Errorf("batch insert %w", err)
+			}
+		case err != nil:
+			tx.Rollback()
+			return batch, fmt.Errorf("batch check %w", err)
+		default:
+			(*batch)[i].ShortURL = dbOriginalURL
+		}
+		(*batch)[i].OriginalURL = ""
+	}
+	return batch, nil
 }

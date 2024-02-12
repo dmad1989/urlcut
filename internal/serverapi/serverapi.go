@@ -9,24 +9,17 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
 	"golang.org/x/sync/errgroup"
 )
 
-//easyjson:json
-type Request struct {
-	URL string `json:"url"`
-}
-
-//easyjson:json
-type Response struct {
-	Result string `json:"result"`
-}
 type app interface {
 	Cut(cxt context.Context, url string) (generated string, err error)
 	GetKeyByValue(cxt context.Context, value string) (res string, err error)
 	PingDB(context.Context) error
+	UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error)
 }
 
 type conf interface {
@@ -51,6 +44,7 @@ func (s server) initHandlers() {
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
 	s.mux.Post("/api/shorten", s.cutterJSONHandler)
+	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
 	s.mux.Get("/ping", s.pingHandler)
 }
 
@@ -84,7 +78,7 @@ func (s server) Run(ctx context.Context) error {
 }
 
 func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
-	var reqJSON Request
+	var reqJSON jsonobject.Request
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("cutterJsonHandler: content-type have to be application/json"))
 		return
@@ -106,7 +100,7 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusCreated)
-	respJSON := Response{
+	respJSON := jsonobject.Response{
 		Result: fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code),
 	}
 	respb, err := respJSON.MarshalJSON()
@@ -197,4 +191,38 @@ func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	res.WriteHeader(http.StatusOK)
+}
+
+func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Request) {
+	var batchRequest jsonobject.Batch
+	if req.Header.Get("Content-Type") != "application/json" {
+		responseError(res, fmt.Errorf("JSONBatchHandler: content-type have to be application/json"))
+		return
+	}
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		responseError(res, fmt.Errorf("JSONBatchHandler: reading request body: %w", err))
+		return
+	}
+
+	if err := batchRequest.UnmarshalJSON(body); err != nil {
+		responseError(res, fmt.Errorf("JSONBatchHandler: decoding request: %w", err))
+		return
+	}
+	logging.Log.Info(batchRequest)
+	batchResponse, err := s.cutterApp.UploadBatch(req.Context(), &batchRequest)
+
+	if err != nil {
+		responseError(res, fmt.Errorf("JSONBatchHandler: getting code for url: %w", err))
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusCreated)
+	respb, err := batchResponse.MarshalJSON()
+	if err != nil {
+		responseError(res, fmt.Errorf("cutterJsonHandler: encoding response: %w", err))
+		return
+	}
+	res.Write(respb)
 }

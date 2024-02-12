@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 )
 
@@ -20,13 +21,6 @@ type conf interface {
 type db interface {
 	Ping(context.Context) error
 	CloseDB() error
-}
-
-//easyjson:json
-type Item struct {
-	ID          int    `json:"uuid"`
-	ShortURL    string `json:"short_url"`
-	OriginalURL string `json:"original_url"`
 }
 
 type storage struct {
@@ -87,7 +81,7 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	s.revertMap[short] = original
 	if s.fileName != "" {
 		id := len(s.urlMap) + 1
-		if err := writeItem(s.fileName, Item{ID: id, ShortURL: short, OriginalURL: original}); err != nil {
+		if err := writeItem(s.fileName, jsonobject.Item{ID: id, ShortURL: short, OriginalURL: original}); err != nil {
 			return fmt.Errorf("store.add: write items: %w", err)
 		}
 	}
@@ -102,6 +96,22 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 		return "", fmt.Errorf("no data found in urlMap for value %s", value)
 	}
 	return res, nil
+}
+
+func (s *storage) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error) {
+	for i := 0; i < len(*batch); i++ {
+		short, err := s.GetShortURL(ctx, (*batch)[i].OriginalURL)
+		if err != nil {
+			return batch, fmt.Errorf("upload batch check: %w", err)
+		}
+		if short != "" {
+			(*batch)[i].ShortURL = short
+		} else {
+			s.Add(ctx, (*batch)[i].OriginalURL, (*batch)[i].ShortURL)
+		}
+		(*batch)[i].OriginalURL = ""
+	}
+	return batch, nil
 }
 
 func (s *storage) readFromFile() error {
@@ -141,11 +151,11 @@ func newConsumer(filename string) (*Consumer, error) {
 	}, nil
 }
 
-func (c *Consumer) ReadItems() ([]Item, error) {
-	items := []Item{}
+func (c *Consumer) ReadItems() ([]jsonobject.Item, error) {
+	items := []jsonobject.Item{}
 	for c.scanner.Scan() {
 		data := c.scanner.Bytes()
-		item := Item{}
+		item := jsonobject.Item{}
 		err := item.UnmarshalJSON(data)
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal from file: %w", err)
@@ -158,7 +168,7 @@ func (c *Consumer) ReadItems() ([]Item, error) {
 	return items, nil
 }
 
-func writeItem(fname string, i Item) error {
+func writeItem(fname string, i jsonobject.Item) error {
 	data, err := i.MarshalJSON()
 	if err != nil {
 		return fmt.Errorf("marshal item: %w", err)
