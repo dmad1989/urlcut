@@ -2,6 +2,7 @@ package serverapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dmad1989/urlcut/internal/dbstore"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
@@ -93,13 +95,19 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	code, err := s.cutterApp.Cut(req.Context(), reqJSON.URL)
+	status := http.StatusCreated
 	if err != nil {
-		responseError(res, fmt.Errorf("cutterJsonHandler: getting code for url: %w", err))
-		return
+		var uerr *dbstore.UniqueURLError
+		if !errors.As(err, &uerr) {
+			responseError(res, fmt.Errorf("cutterJsonHandler: getting code for url: %w", err))
+			return
+		}
+		status = http.StatusConflict
+		code = uerr.Code
 	}
 
 	res.Header().Set("Content-Type", "application/json")
-	res.WriteHeader(http.StatusCreated)
+	res.WriteHeader(status)
 	respJSON := jsonobject.Response{
 		Result: fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code),
 	}
@@ -130,13 +138,18 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	}
 
 	code, err := s.cutterApp.Cut(req.Context(), string(body))
+	status := http.StatusCreated
 	if err != nil {
-		responseError(res, fmt.Errorf("cutterHandler: getting code for url: %w", err))
-		return
+		var uerr *dbstore.UniqueURLError
+		if !errors.As(err, &uerr) {
+			responseError(res, fmt.Errorf("cutterHandler: getting code for url: %w", err))
+			return
+		}
+		status = http.StatusConflict
+		code = uerr.Code
 	}
-
 	res.Header().Set("Content-Type", "text/plain")
-	res.WriteHeader(http.StatusCreated)
+	res.WriteHeader(status)
 	res.Write([]byte(fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code)))
 }
 

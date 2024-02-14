@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -24,6 +26,7 @@ const (
 	ALTER TABLE IF EXISTS public.urls OWNER to postgres;
 	CREATE INDEX short_url ON urls (short_url);
     CREATE INDEX original_url ON urls (original_url);
+	ALTER TABLE public.urls ADD CONSTRAINT urls_original_unique UNIQUE (original_url);
 	`
 	sqlChechTableExists = `SELECT EXISTS (
 		SELECT FROM 
@@ -124,6 +127,24 @@ func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 	}
 }
 
+type UniqueURLError struct {
+	Code string
+	Err  error
+}
+
+func (ue *UniqueURLError) Error() string {
+	return fmt.Sprintf("URL is not unique. Saved Code is: %s; %v", ue.Code, ue.Err)
+}
+func NewUniqueURLError(code string, err error) error {
+	return &UniqueURLError{
+		Code: code,
+		Err:  err,
+	}
+}
+func (te *UniqueURLError) Unwrap() error {
+	return te.Err
+}
+
 func (s *storage) Add(ctx context.Context, original, short string) error {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
@@ -132,6 +153,15 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 
 	_, err := s.db.ExecContext(tctx, sqlInsert, short, original)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr); pgErr.Code == pgerrcode.UniqueViolation {
+			sURL := ""
+			errQuery := s.db.QueryRowContext(tctx, sqlGetShortURL, original).Scan(&sURL)
+			if errQuery != nil {
+				return fmt.Errorf("dbstore.GetShortURL select: %w", err)
+			}
+			return NewUniqueURLError(sURL, err)
+		}
 		return fmt.Errorf("dbstore.add: write items: %w", err)
 	}
 	return nil

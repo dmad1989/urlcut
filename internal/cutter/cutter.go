@@ -27,14 +27,14 @@ func New(s Store) *App {
 }
 
 func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
-	short, err = a.storage.GetShortURL(ctx, url)
-	if err != nil {
-		return "", fmt.Errorf("cut: getting value by key %s from storage : %w", url, err)
-	}
+	// short, err = a.storage.GetShortURL(ctx, url)
+	// if err != nil {
+	// 	return "", fmt.Errorf("cut: getting value by key %s from storage : %w", url, err)
+	// }
 
-	if short != "" {
-		return
-	}
+	// if short != "" {
+	// 	return
+	// }
 	short, err = randStringBytes(8)
 	if err != nil {
 		return "", fmt.Errorf("cut: while generating path: %w", err)

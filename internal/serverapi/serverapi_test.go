@@ -193,7 +193,7 @@ func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wante
 	}
 	err := res.Body.Close()
 	require.NoError(t, err)
-	if res.StatusCode == http.StatusCreated {
+	if res.StatusCode == http.StatusCreated || res.StatusCode == http.StatusConflict {
 		assert.Regexpf(t, regexp.MustCompile(wantedPattern), string(resBody), "body must be like %s", wantedPattern)
 	} else {
 		assert.Equal(t, wantedMessage, string(resBody))
@@ -332,7 +332,7 @@ func TestCutterJSONHandler(t *testing.T) {
 				jsonHeader: true,
 				body:       strings.NewReader(JSONBodyRequest)},
 			expResp: expectedPostResponse{
-				code:        http.StatusCreated,
+				code:        http.StatusConflict,
 				bodyPattern: fmt.Sprintf(JSONPatternResponse, serv.config.GetShortAddress()[7:]),
 				bodyMessage: ""},
 		},
@@ -372,7 +372,7 @@ func TestCompression(t *testing.T) {
 
 		resp, err := testserver.Client().Do(r)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusCreated, resp.StatusCode)
+		require.Equal(t, http.StatusConflict, resp.StatusCode)
 
 		defer resp.Body.Close()
 
