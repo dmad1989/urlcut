@@ -141,8 +141,8 @@ func NewUniqueURLError(code string, err error) error {
 		Err:  err,
 	}
 }
-func (te *UniqueURLError) Unwrap() error {
-	return te.Err
+func (ue *UniqueURLError) Unwrap() error {
+	return ue.Err
 }
 
 func (s *storage) Add(ctx context.Context, original, short string) error {
