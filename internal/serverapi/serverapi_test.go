@@ -23,7 +23,7 @@ const (
 	postResponsePattern  = `^http:\/\/localhost:8080\/.+`
 	targetURL            = "http://localhost:8080/"
 	positiveURL          = "http://ya.ru"
-	JSONBodyRequest      = `{"url":"http://ya.ru/"}`
+	JSONBodyRequest      = `{"url":"http://mail.ru/"}`
 	JSONPatternResponse  = `^{"result":"http:\/\/%s\/.+`
 	JSONPathPattern      = "%s/api/shorten"
 )
@@ -332,7 +332,7 @@ func TestCutterJSONHandler(t *testing.T) {
 				jsonHeader: true,
 				body:       strings.NewReader(JSONBodyRequest)},
 			expResp: expectedPostResponse{
-				code:        http.StatusConflict,
+				code:        http.StatusCreated,
 				bodyPattern: fmt.Sprintf(JSONPatternResponse, serv.config.GetShortAddress()[7:]),
 				bodyMessage: ""},
 		},
@@ -372,7 +372,7 @@ func TestCompression(t *testing.T) {
 
 		resp, err := testserver.Client().Do(r)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusConflict, resp.StatusCode)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		defer resp.Body.Close()
 
