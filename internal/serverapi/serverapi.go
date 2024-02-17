@@ -21,7 +21,7 @@ type app interface {
 	Cut(cxt context.Context, url string) (generated string, err error)
 	GetKeyByValue(cxt context.Context, value string) (res string, err error)
 	PingDB(context.Context) error
-	UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error)
+	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 }
 
 type conf interface {
@@ -223,15 +223,15 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 		return
 	}
 	logging.Log.Info(batchRequest)
-	batchResponse, err := s.cutterApp.UploadBatch(req.Context(), &batchRequest)
+	batchResponse, err := s.cutterApp.UploadBatch(req.Context(), batchRequest)
 
 	if err != nil {
 		responseError(res, fmt.Errorf("JSONBatchHandler: getting code for url: %w", err))
 		return
 	}
 
-	for i := 0; i < len(*batchResponse); i++ {
-		(*batchResponse)[i].ShortURL = fmt.Sprintf("%s/%s", s.config.GetShortAddress(), (*batchResponse)[i].ShortURL)
+	for i := 0; i < len(batchResponse); i++ {
+		batchResponse[i].ShortURL = fmt.Sprintf("%s/%s", s.config.GetShortAddress(), batchResponse[i].ShortURL)
 	}
 
 	res.Header().Set("Content-Type", "application/json")

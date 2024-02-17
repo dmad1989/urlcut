@@ -103,18 +103,18 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 	return res, nil
 }
 
-func (s *storage) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error) {
-	for i := 0; i < len(*batch); i++ {
-		short, err := s.GetShortURL(ctx, (*batch)[i].OriginalURL)
+func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
+	for i := 0; i < len(batch); i++ {
+		short, err := s.GetShortURL(ctx, batch[i].OriginalURL)
 		if err != nil {
 			return batch, fmt.Errorf("upload batch check: %w", err)
 		}
 		if short != "" {
-			(*batch)[i].ShortURL = short
+			batch[i].ShortURL = short
 		} else {
-			s.Add(ctx, (*batch)[i].OriginalURL, (*batch)[i].ShortURL)
+			s.Add(ctx, batch[i].OriginalURL, batch[i].ShortURL)
 		}
-		(*batch)[i].OriginalURL = ""
+		batch[i].OriginalURL = ""
 	}
 	return batch, nil
 }

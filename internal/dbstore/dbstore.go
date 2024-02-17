@@ -151,7 +151,7 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 	}
 }
 
-func (s *storage) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error) {
+func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
@@ -172,12 +172,12 @@ func (s *storage) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*js
 		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
 	}
 	defer stmtCheck.Close()
-	for i := 0; i < len(*batch); i++ {
+	for i := 0; i < len(batch); i++ {
 		var dbOriginalURL string
-		err := stmtCheck.QueryRowContext(tctx, (*batch)[i].OriginalURL).Scan(&dbOriginalURL)
+		err := stmtCheck.QueryRowContext(tctx, batch[i].OriginalURL).Scan(&dbOriginalURL)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			if _, err = stmtInsert.ExecContext(tctx, (*batch)[i].ShortURL, (*batch)[i].OriginalURL); err != nil {
+			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL); err != nil {
 				tx.Rollback()
 				return batch, fmt.Errorf("batch insert %w", err)
 			}
@@ -185,9 +185,9 @@ func (s *storage) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*js
 			tx.Rollback()
 			return batch, fmt.Errorf("batch check %w", err)
 		default:
-			(*batch)[i].ShortURL = dbOriginalURL
+			batch[i].ShortURL = dbOriginalURL
 		}
-		(*batch)[i].OriginalURL = ""
+		batch[i].OriginalURL = ""
 	}
 	return batch, nil
 }

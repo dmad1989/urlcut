@@ -18,7 +18,7 @@ type Store interface {
 	GetOriginalURL(ctx context.Context, value string) (res string, err error)
 	Ping(context.Context) error
 	CloseDB() error
-	UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error)
+	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 }
 
 type App struct {
@@ -84,13 +84,13 @@ func (a *App) PingDB(ctx context.Context) error {
 	return a.storage.Ping(ctx)
 }
 
-func (a *App) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*jsonobject.Batch, error) {
-	for i := 0; i < len(*batch); i++ {
+func (a *App) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
+	for i := 0; i < len(batch); i++ {
 		short, err := randStringBytes(8)
 		if err != nil {
 			return batch, fmt.Errorf("uploadBatch: %w", err)
 		}
-		(*batch)[i].ShortURL = short
+		(batch)[i].ShortURL = short
 	}
 	batch, err := a.storage.UploadBatch(ctx, batch)
 	if err != nil {
