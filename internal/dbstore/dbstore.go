@@ -59,16 +59,18 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	res := storage{rw: sync.RWMutex{},
 		db: db}
 
-	err = res.Ping(ctx)
-	if err != nil {
+	if err = res.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("check DB after create: %w", err)
 	}
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
 	row := db.QueryRowContext(tctx, sqlCheckTableExists)
+	if row.Err() != nil {
+		return nil, fmt.Errorf("check table exists: %w", err)
+	}
 	var tableExists bool
-	err = row.Scan(&tableExists)
-	if err != nil {
+	if err = row.Scan(&tableExists); err != nil {
 		return nil, fmt.Errorf("check table exists: %w", err)
 	}
 	if !tableExists {
