@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	_ "embed"
+
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -28,22 +30,20 @@ const (
     CREATE INDEX original_url ON urls (original_url);
 	ALTER TABLE public.urls ADD CONSTRAINT urls_original_unique UNIQUE (original_url);
 	`
-	sqlChechTableExists = `SELECT EXISTS (
-		SELECT FROM 
-			information_schema.tables 
-		WHERE 
-			table_schema LIKE 'public' AND 
-			table_type LIKE 'BASE TABLE' AND
-			table_name = 'urls'
-		)`
-	sqlGetShortURL    = "select  u.short_url  from urls u where u.original_url  = $1"
-	sqlGetOriginalURL = "select  u.original_url  from urls u where u.short_url  = $1"
-	sqlInsert         = "INSERT INTO public.urls (short_url, original_url) VALUES( $1, $2)"
-
 	timeout = time.Duration(time.Second * 10)
 )
 
-// todo общее значения для контекста таймаута
+//go:embed sql/checkTableExists.sql
+var sqlCheckTableExists string
+
+//go:embed sql/getShortURL.sql
+var sqlGetShortURL string
+
+//go:embed sql/getOriginalURL.sql
+var sqlGetOriginalURL string
+
+//go:embed sql/insertURL.sql
+var sqlInsert string
 
 type conf interface {
 	GetFileStoreName() string
@@ -76,7 +76,7 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	}
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	row := db.QueryRowContext(tctx, sqlChechTableExists)
+	row := db.QueryRowContext(tctx, sqlCheckTableExists)
 	var tableExists bool
 	err = row.Scan(&tableExists)
 	if err != nil {
