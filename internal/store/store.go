@@ -62,7 +62,7 @@ func (s *storage) Ping(ctx context.Context) error {
 }
 
 func (s *storage) CloseDB() error {
-	return errors.New("unsupported store method")
+	return nil
 }
 
 func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
