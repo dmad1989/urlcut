@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dmad1989/urlcut/internal/dbstore"
+	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
@@ -97,7 +97,7 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 	code, err := s.cutterApp.Cut(req.Context(), reqJSON.URL)
 	status := http.StatusCreated
 	if err != nil {
-		var uerr *dbstore.UniqueURLError
+		var uerr *cutter.UniqueURLError
 		if !errors.As(err, &uerr) {
 			responseError(res, fmt.Errorf("cutterJsonHandler: getting code for url: %w", err))
 			return
@@ -140,7 +140,7 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	code, err := s.cutterApp.Cut(req.Context(), string(body))
 	status := http.StatusCreated
 	if err != nil {
-		var uerr *dbstore.UniqueURLError
+		var uerr *cutter.UniqueURLError
 		if !errors.As(err, &uerr) {
 			responseError(res, fmt.Errorf("cutterHandler: getting code for url: %w", err))
 			return

@@ -12,8 +12,6 @@ import (
 	"github.com/pressly/goose/v3"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -114,7 +112,7 @@ func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 	err := s.db.QueryRowContext(tctx, sqlGetShortURL, key).Scan(&sURL)
 
 	switch {
-	case err == sql.ErrNoRows:
+	case errors.Is(err, sql.ErrNoRows):
 		return "", nil
 	case err != nil:
 		return "", fmt.Errorf("dbstore.GetShortURL select: %w", err)
@@ -123,41 +121,13 @@ func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 	}
 }
 
-type UniqueURLError struct {
-	Code string
-	Err  error
-}
-
-func (ue *UniqueURLError) Error() string {
-	return fmt.Sprintf("URL is not unique. Saved Code is: %s; %v", ue.Code, ue.Err)
-}
-func NewUniqueURLError(code string, err error) error {
-	return &UniqueURLError{
-		Code: code,
-		Err:  err,
-	}
-}
-func (ue *UniqueURLError) Unwrap() error {
-	return ue.Err
-}
-
 func (s *storage) Add(ctx context.Context, original, short string) error {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	_, err := s.db.ExecContext(tctx, sqlInsert, short, original)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr); pgErr.Code == pgerrcode.UniqueViolation {
-			sURL := ""
-			errQuery := s.db.QueryRowContext(tctx, sqlGetShortURL, original).Scan(&sURL)
-			if errQuery != nil {
-				return fmt.Errorf("dbstore.GetShortURL select: %w", err)
-			}
-			return NewUniqueURLError(sURL, err)
-		}
+	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original); err != nil {
 		return fmt.Errorf("dbstore.add: write items: %w", err)
 	}
 	return nil
@@ -206,7 +176,7 @@ func (s *storage) UploadBatch(ctx context.Context, batch *jsonobject.Batch) (*js
 		var dbOriginalURL string
 		err := stmtCheck.QueryRowContext(tctx, (*batch)[i].OriginalURL).Scan(&dbOriginalURL)
 		switch {
-		case err == sql.ErrNoRows:
+		case errors.Is(err, sql.ErrNoRows):
 			if _, err = stmtInsert.ExecContext(tctx, (*batch)[i].ShortURL, (*batch)[i].OriginalURL); err != nil {
 				tx.Rollback()
 				return batch, fmt.Errorf("batch insert %w", err)

@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type Store interface {
@@ -26,22 +29,45 @@ func New(s Store) *App {
 	return &App{storage: s}
 }
 
-func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
-	// short, err = a.storage.GetShortURL(ctx, url)
-	// if err != nil {
-	// 	return "", fmt.Errorf("cut: getting value by key %s from storage : %w", url, err)
-	// }
+type UniqueURLError struct {
+	Code string
+	Err  error
+}
 
-	// if short != "" {
-	// 	return
-	// }
+func (ue *UniqueURLError) Error() string {
+	return fmt.Sprintf("URL is not unique. Saved Code is: %s; %v", ue.Code, ue.Err)
+}
+func NewUniqueURLError(code string, err error) error {
+	return &UniqueURLError{
+		Code: code,
+		Err:  err,
+	}
+}
+func (ue *UniqueURLError) Unwrap() error {
+	return ue.Err
+}
+
+func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
 	short, err = randStringBytes(8)
 	if err != nil {
 		return "", fmt.Errorf("cut: while generating path: %w", err)
 	}
 	err = a.storage.Add(ctx, url, short)
 	if err != nil {
-		return "", fmt.Errorf("cut: add path: %w", err)
+		var uniq UniqueURLError
+		var pgErr *pgconn.PgError
+		switch {
+		case errors.Is(err, &uniq):
+			return "", err
+		case errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation:
+			short, err = a.storage.GetShortURL(ctx, url)
+			if err != nil {
+				return "", fmt.Errorf("cut: getting value by key %s from storage : %w", url, err)
+			}
+			err = NewUniqueURLError(short, err)
+		default:
+			return "", fmt.Errorf("cut: add path: %w", err)
+		}
 	}
 	return
 }

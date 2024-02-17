@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/dmad1989/urlcut/internal/dbstore"
+	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 )
@@ -80,7 +80,7 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	defer s.rw.Unlock()
 	generated, isFound := s.urlMap[original]
 	if isFound {
-		return dbstore.NewUniqueURLError(generated, fmt.Errorf("url already added"))
+		return cutter.NewUniqueURLError(generated, fmt.Errorf("url already added"))
 	}
 	s.urlMap[original] = short
 	s.revertMap[short] = original
