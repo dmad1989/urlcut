@@ -3,12 +3,13 @@ package dbstore
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	_ "embed"
+	"github.com/pressly/goose/v3"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/jackc/pgerrcode"
@@ -16,22 +17,10 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-const (
-	sqlCreateTable = `CREATE TABLE IF NOT EXISTS public.urls
-	(
-		"ID" bigint NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 1000000 CACHE 1 ),
-		short_url text COLLATE pg_catalog."default" NOT NULL,
-		original_url text COLLATE pg_catalog."default",
-		CONSTRAINT urls_pkey PRIMARY KEY ("ID")
-	)	
-	TABLESPACE pg_default;	
-	ALTER TABLE IF EXISTS public.urls OWNER to postgres;
-	CREATE INDEX short_url ON urls (short_url);
-    CREATE INDEX original_url ON urls (original_url);
-	ALTER TABLE public.urls ADD CONSTRAINT urls_original_unique UNIQUE (original_url);
-	`
-	timeout = time.Duration(time.Second * 10)
-)
+const timeout = time.Duration(time.Second * 10)
+
+//go:embed sql/migrations/00001_create_urls_table.sql
+var embedMigrations embed.FS
 
 //go:embed sql/checkTableExists.sql
 var sqlCheckTableExists string
@@ -83,9 +72,14 @@ func New(ctx context.Context, c conf) (*storage, error) {
 		return nil, fmt.Errorf("check table exists: %w", err)
 	}
 	if !tableExists {
-		_, err = db.ExecContext(tctx, sqlCreateTable)
-		if err != nil {
-			return nil, fmt.Errorf("create table: %w", err)
+		goose.SetBaseFS(embedMigrations)
+
+		if err := goose.SetDialect("postgres"); err != nil {
+			return nil, fmt.Errorf("goose.SetDialect: %w", err)
+		}
+
+		if err := goose.Up(db, "sql/migrations"); err != nil {
+			return nil, fmt.Errorf("goose: create table: %w", err)
 		}
 	}
 
