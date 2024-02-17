@@ -172,7 +172,7 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 	err := s.db.QueryRowContext(tctx, sqlGetOriginalURL, value).Scan(&sURL)
 
 	switch {
-	case err == sql.ErrNoRows:
+	case errors.Is(err, sql.ErrNoRows):
 		return "", fmt.Errorf("no data found in db for value %s", value)
 	case err != nil:
 		return "", fmt.Errorf("dbstore.GetOriginalURL select: %w", err)
