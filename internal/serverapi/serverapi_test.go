@@ -3,6 +3,7 @@ package serverapi
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +23,7 @@ const (
 	postResponsePattern  = `^http:\/\/localhost:8080\/.+`
 	targetURL            = "http://localhost:8080/"
 	positiveURL          = "http://ya.ru"
-	JSONBodyRequest      = `{"url":"http://ya.ru/"}`
+	JSONBodyRequest      = `{"url":"http://mail.ru/"}`
 	JSONPatternResponse  = `^{"result":"http:\/\/%s\/.+`
 	JSONPathPattern      = "%s/api/shorten"
 )
@@ -31,6 +32,7 @@ type TestConfig struct {
 	url           string
 	shortAddress  string
 	fileStoreName string
+	dbConnName    string
 }
 
 var tconf *TestConfig
@@ -45,6 +47,9 @@ func (c TestConfig) GetShortAddress() string {
 func (c TestConfig) GetFileStoreName() string {
 	return c.fileStoreName
 }
+func (c TestConfig) GetDBConnName() string {
+	return c.dbConnName
+}
 
 func initEnv() (serv *server, testserver *httptest.Server) {
 	tconf = &TestConfig{
@@ -52,7 +57,7 @@ func initEnv() (serv *server, testserver *httptest.Server) {
 		shortAddress:  "http://localhost:8080/",
 		fileStoreName: "/tmp/short-url-db.json"}
 
-	storage, err := store.New(tconf)
+	storage, err := store.New(context.Background(), tconf)
 	if err != nil {
 		panic(err)
 	}
@@ -188,7 +193,7 @@ func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wante
 	}
 	err := res.Body.Close()
 	require.NoError(t, err)
-	if res.StatusCode == http.StatusCreated {
+	if res.StatusCode == http.StatusCreated || res.StatusCode == http.StatusConflict {
 		assert.Regexpf(t, regexp.MustCompile(wantedPattern), string(resBody), "body must be like %s", wantedPattern)
 	} else {
 		assert.Equal(t, wantedMessage, string(resBody))

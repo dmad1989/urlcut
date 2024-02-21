@@ -1,28 +1,27 @@
 package serverapi
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/dmad1989/urlcut/internal/cutter"
+	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/sync/errgroup"
 )
 
-//easyjson:json
-type Request struct {
-	URL string `json:"url"`
-}
-
-//easyjson:json
-type Response struct {
-	Result string `json:"result"`
-}
 type app interface {
-	Cut(url string) (generated string, err error)
-	GetKeyByValue(value string) (res string, err error)
+	Cut(cxt context.Context, url string) (generated string, err error)
+	GetKeyByValue(cxt context.Context, value string) (res string, err error)
+	PingDB(context.Context) error
+	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 }
 
 type conf interface {
@@ -47,20 +46,41 @@ func (s server) initHandlers() {
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
 	s.mux.Post("/api/shorten", s.cutterJSONHandler)
+	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
+	s.mux.Get("/ping", s.pingHandler)
 }
 
-func (s server) Run() error {
+func (s server) Run(ctx context.Context) error {
 	defer logging.Log.Sync()
 	logging.Log.Infof("Server started at %s", s.config.GetURL())
-	err := http.ListenAndServe(s.config.GetURL(), s.mux)
-	if err != nil {
-		return fmt.Errorf("serverapi.Run: %w", err)
+	httpServer := &http.Server{
+		Addr:    s.config.GetURL(),
+		Handler: s.mux,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
+	}
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		err := httpServer.ListenAndServe()
+		if err != nil {
+			return fmt.Errorf("serverapi.Run: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		<-gCtx.Done()
+		return httpServer.Shutdown(context.Background())
+	})
+
+	if err := g.Wait(); err != nil {
+		fmt.Printf("exit reason: %s \n", err)
 	}
 	return nil
 }
 
 func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
-	var reqJSON Request
+	var reqJSON jsonobject.Request
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("cutterJsonHandler: content-type have to be application/json"))
 		return
@@ -74,15 +94,21 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 		responseError(res, fmt.Errorf("cutterJsonHandler: decoding request: %w", err))
 		return
 	}
-	code, err := s.cutterApp.Cut(reqJSON.URL)
+	code, err := s.cutterApp.Cut(req.Context(), reqJSON.URL)
+	status := http.StatusCreated
 	if err != nil {
-		responseError(res, fmt.Errorf("cutterJsonHandler: getting code for url: %w", err))
-		return
+		var uerr *cutter.UniqueURLError
+		if !errors.As(err, &uerr) {
+			responseError(res, fmt.Errorf("cutterJsonHandler: getting code for url: %w", err))
+			return
+		}
+		status = http.StatusConflict
+		code = uerr.Code
 	}
 
 	res.Header().Set("Content-Type", "application/json")
-	res.WriteHeader(http.StatusCreated)
-	respJSON := Response{
+	res.WriteHeader(status)
+	respJSON := jsonobject.Response{
 		Result: fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code),
 	}
 	respb, err := respJSON.MarshalJSON()
@@ -111,14 +137,19 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	code, err := s.cutterApp.Cut(string(body))
+	code, err := s.cutterApp.Cut(req.Context(), string(body))
+	status := http.StatusCreated
 	if err != nil {
-		responseError(res, fmt.Errorf("cutterHandler: getting code for url: %w", err))
-		return
+		var uerr *cutter.UniqueURLError
+		if !errors.As(err, &uerr) {
+			responseError(res, fmt.Errorf("cutterHandler: getting code for url: %w", err))
+			return
+		}
+		status = http.StatusConflict
+		code = uerr.Code
 	}
-
 	res.Header().Set("Content-Type", "text/plain")
-	res.WriteHeader(http.StatusCreated)
+	res.WriteHeader(status)
 	res.Write([]byte(fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code)))
 }
 
@@ -129,7 +160,7 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	redirectURL, err := s.cutterApp.GetKeyByValue(path)
+	redirectURL, err := s.cutterApp.GetKeyByValue(req.Context(), path)
 	if err != nil {
 		responseError(res, fmt.Errorf("redirectHandler: fetching url fo redirect: %w", err))
 		return
@@ -148,7 +179,7 @@ func gzipMiddleware(h http.Handler) http.Handler {
 		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
-				responseError(w, fmt.Errorf("gzip: fail to read compressed body: %w", err))
+				responseError(w, fmt.Errorf("gzip: read compressed body: %w", err))
 				return
 			}
 			r.Body = cr
@@ -163,4 +194,52 @@ func gzipMiddleware(h http.Handler) http.Handler {
 
 		h.ServeHTTP(nextW, r)
 	})
+}
+
+func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
+	err := s.cutterApp.PingDB(req.Context())
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(fmt.Errorf("pingHandler : %w", err).Error()))
+		return
+	}
+	res.WriteHeader(http.StatusOK)
+}
+
+func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Request) {
+	var batchRequest jsonobject.Batch
+	if req.Header.Get("Content-Type") != "application/json" {
+		responseError(res, fmt.Errorf("JSONBatchHandler: content-type have to be application/json"))
+		return
+	}
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		responseError(res, fmt.Errorf("JSONBatchHandler: reading request body: %w", err))
+		return
+	}
+
+	if err := batchRequest.UnmarshalJSON(body); err != nil {
+		responseError(res, fmt.Errorf("JSONBatchHandler: decoding request: %w", err))
+		return
+	}
+	logging.Log.Info(batchRequest)
+	batchResponse, err := s.cutterApp.UploadBatch(req.Context(), batchRequest)
+
+	if err != nil {
+		responseError(res, fmt.Errorf("JSONBatchHandler: getting code for url: %w", err))
+		return
+	}
+
+	for i := 0; i < len(batchResponse); i++ {
+		batchResponse[i].ShortURL = fmt.Sprintf("%s/%s", s.config.GetShortAddress(), batchResponse[i].ShortURL)
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusCreated)
+	respb, err := batchResponse.MarshalJSON()
+	if err != nil {
+		responseError(res, fmt.Errorf("cutterJsonHandler: encoding response: %w", err))
+		return
+	}
+	res.Write(respb)
 }

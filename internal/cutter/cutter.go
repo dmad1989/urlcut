@@ -1,51 +1,102 @@
 package cutter
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
+
+	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type store interface {
-	Get(key string) (string, error)
-	Add(key, value string) error
-	GetKey(value string) (res string, err error)
+type Store interface {
+	GetShortURL(ctx context.Context, key string) (string, error)
+	Add(ctx context.Context, original, short string) error
+	GetOriginalURL(ctx context.Context, value string) (res string, err error)
+	Ping(context.Context) error
+	CloseDB() error
+	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 }
 
 type App struct {
-	storage store
+	storage Store
 }
 
-func New(s store) *App {
+func New(s Store) *App {
 	return &App{storage: s}
 }
 
-func (a *App) Cut(url string) (generated string, err error) {
-	generated, err = a.storage.Get(url)
-	if err != nil {
-		return "", fmt.Errorf("cut: getting value by key %s from storage : %w", url, err)
-	}
+type UniqueURLError struct {
+	Code string
+	Err  error
+}
 
-	if generated != "" {
-		return
+func (ue *UniqueURLError) Error() string {
+	return fmt.Sprintf("URL is not unique. Saved Code is: %s; %v", ue.Code, ue.Err)
+}
+func NewUniqueURLError(code string, err error) error {
+	return &UniqueURLError{
+		Code: code,
+		Err:  err,
 	}
-	generated, err = randStringBytes(8)
+}
+func (ue *UniqueURLError) Unwrap() error {
+	return ue.Err
+}
+
+func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
+	short, err = randStringBytes(8)
 	if err != nil {
 		return "", fmt.Errorf("cut: while generating path: %w", err)
 	}
-	err = a.storage.Add(url, generated)
+	err = a.storage.Add(ctx, url, short)
 	if err != nil {
-		return "", fmt.Errorf("cut: failed to add path: %w", err)
+		var uniq UniqueURLError
+		var pgErr *pgconn.PgError
+		switch {
+		case errors.Is(err, &uniq):
+			return "", err
+		case errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation:
+			short, err = a.storage.GetShortURL(ctx, url)
+			if err != nil {
+				return "", fmt.Errorf("cut: getting value by key %s from storage : %w", url, err)
+			}
+			err = NewUniqueURLError(short, err)
+		default:
+			return "", fmt.Errorf("cut: add path: %w", err)
+		}
 	}
 	return
 }
 
-func (a *App) GetKeyByValue(value string) (res string, err error) {
-	res, err = a.storage.GetKey(value)
+func (a *App) GetKeyByValue(ctx context.Context, value string) (res string, err error) {
+	res, err = a.storage.GetOriginalURL(ctx, value)
 	if err != nil {
 		return "", fmt.Errorf("getKeyByValue: while getting value by key:%s: %w", value, err)
 	}
 	return
+}
+
+func (a *App) PingDB(ctx context.Context) error {
+	return a.storage.Ping(ctx)
+}
+
+func (a *App) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
+	for i := 0; i < len(batch); i++ {
+		short, err := randStringBytes(8)
+		if err != nil {
+			return batch, fmt.Errorf("uploadBatch: %w", err)
+		}
+		(batch)[i].ShortURL = short
+	}
+	batch, err := a.storage.UploadBatch(ctx, batch)
+	if err != nil {
+		return batch, fmt.Errorf("UploadBact: %w", err)
+	}
+	return batch, nil
 }
 
 func randStringBytes(n int) (string, error) {
