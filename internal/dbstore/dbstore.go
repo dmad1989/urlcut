@@ -17,7 +17,7 @@ import (
 
 const timeout = time.Duration(time.Second * 10)
 
-//go:embed sql/migrations/00001_create_urls_table.sql
+//go:embed sql/migrations/*.sql
 var embedMigrations embed.FS
 
 //go:embed sql/checkTableExists.sql
@@ -126,7 +126,7 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
+	// TODO user param
 	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original); err != nil {
 		return fmt.Errorf("dbstore.add: write items: %w", err)
 	}
