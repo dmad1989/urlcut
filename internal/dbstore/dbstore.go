@@ -222,6 +222,10 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", err)
 	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", rows.Err())
+	}
+
 	for rows.Next() {
 		var original string
 		var short string

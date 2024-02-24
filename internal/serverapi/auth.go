@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
@@ -72,6 +73,8 @@ func (s server) Auth(h http.Handler) http.Handler {
 
 		switch {
 		case errors.Is(err, http.ErrNoCookie) || errors.Is(err, ErrorInvalidToken):
+			logging.Log.Infof("no cookie? ", errors.Is(err, http.ErrNoCookie))
+			logging.Log.Infof(" ErrorInvalidToken? ", errors.Is(err, ErrorInvalidToken))
 			userID = createUserID()
 			token, err := generateToken(userID)
 			if err != nil {
@@ -82,6 +85,7 @@ func (s server) Auth(h http.Handler) http.Handler {
 			cookie := http.Cookie{Name: "token", Value: token}
 			http.SetCookie(w, &cookie)
 		case errors.Is(err, ErrorNoUser):
+			logging.Log.Infof(" ErrorNoUser? ", errors.Is(err, ErrorNoUser))
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
 			return

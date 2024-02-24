@@ -264,6 +264,10 @@ func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	for i := 0; i < len(urls); i++ {
+		urls[i].ShortURL = fmt.Sprintf("%s/%s", s.config.GetShortAddress(), urls[i].ShortURL)
+	}
+
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
 	respb, err := urls.MarshalJSON()
