@@ -132,8 +132,8 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	userId := ctx.Value(s.usercontextKey)
-	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original, userId); err != nil {
+	userID := ctx.Value(s.usercontextKey)
+	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original, userID); err != nil {
 		return fmt.Errorf("dbstore.add: write items: %w", err)
 	}
 	return nil
@@ -160,6 +160,10 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
+	userID := ctx.Value(s.usercontextKey)
+	if userID == "" {
+		return batch, errors.New("upload batch, no user in context")
+	}
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	tx, err := s.db.BeginTx(tctx, nil)
@@ -183,7 +187,7 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 		err := stmtCheck.QueryRowContext(tctx, batch[i].OriginalURL).Scan(&dbOriginalURL)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL); err != nil {
+			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL, userID); err != nil {
 				tx.Rollback()
 				return batch, fmt.Errorf("batch insert: %w", err)
 			}
@@ -202,8 +206,8 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var res jsonobject.Batch
-	userId := ctx.Value(s.usercontextKey)
-	if userId == "" {
+	userID := ctx.Value(s.usercontextKey)
+	if userID == "" {
 		return res, errors.New("GetUserUrls, no user in context")
 	}
 
@@ -214,7 +218,7 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	defer stmt.Close()
 	s.rw.RLock()
 	defer s.rw.RUnlock()
-	rows, err := stmt.QueryContext(tctx, userId)
+	rows, err := stmt.QueryContext(tctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", err)
 	}

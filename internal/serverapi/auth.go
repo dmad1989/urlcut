@@ -21,14 +21,14 @@ var (
 	ErrorInvalidToken = errors.New("auth token not valid")
 )
 
-const TOKEN_EXP = time.Hour * 6
-const SECRET_KEY = "gopracticumshoretenersecretkey"
+const tokenExp = time.Hour * 6
+const secretKey = "gopracticumshoretenersecretkey"
 
 func checkToken(t string) (string, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(t, claims,
 		func(t *jwt.Token) (interface{}, error) {
-			return []byte(SECRET_KEY), nil
+			return []byte(secretKey), nil
 		})
 	if err != nil || !token.Valid {
 		return "", ErrorInvalidToken
@@ -39,15 +39,15 @@ func checkToken(t string) (string, error) {
 	return claims.UserID, nil
 }
 
-func generateToken(userId string) (string, error) {
+func generateToken(userID string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TOKEN_EXP)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
 		},
-		UserID: userId,
+		UserID: userID,
 	})
 
-	tokenString, err := token.SignedString([]byte(SECRET_KEY))
+	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
 		return "", fmt.Errorf("generateToken: %w", err)
 	}
@@ -65,15 +65,15 @@ func (s server) Auth(h http.Handler) http.Handler {
 			w.Write([]byte(fmt.Errorf("auth cookie: %w", err).Error()))
 			return
 		}
-		userId := ""
+		userID := ""
 		if !errors.Is(err, http.ErrNoCookie) {
-			userId, err = checkToken(val.Value)
+			userID, err = checkToken(val.Value)
 		}
 
 		switch {
 		case errors.Is(err, http.ErrNoCookie) || errors.Is(err, ErrorInvalidToken):
-			userId = createUserId()
-			token, err := generateToken(userId)
+			userID = createUserID()
+			token, err := generateToken(userID)
 			if err != nil {
 				w.WriteHeader(http.StatusUnauthorized)
 				w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
@@ -90,12 +90,12 @@ func (s server) Auth(h http.Handler) http.Handler {
 			w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
 			return
 		}
-		newCtx := context.WithValue(r.Context(), s.config.GetUserContextKey(), userId)
+		newCtx := context.WithValue(r.Context(), s.config.GetUserContextKey(), userID)
 		h.ServeHTTP(nextW, r.WithContext(newCtx))
 	})
 }
 
-func createUserId() string {
+func createUserID() string {
 	u := uuid.New()
 	return u.String()
 }
