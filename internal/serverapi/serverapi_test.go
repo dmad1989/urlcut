@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/store"
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,9 @@ func (c TestConfig) GetFileStoreName() string {
 }
 func (c TestConfig) GetDBConnName() string {
 	return c.dbConnName
+}
+func (c TestConfig) GetUserContextKey() config.ContextKey {
+	return config.ContextKey{}
 }
 
 func initEnv() (serv *server, testserver *httptest.Server) {

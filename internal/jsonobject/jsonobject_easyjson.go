@@ -268,19 +268,30 @@ func easyjsonDfc1bcb3EncodeGithubComDmad1989UrlcutInternalJsonobject3(out *jwrit
 	out.RawByte('{')
 	first := true
 	_ = first
-	{
+	if in.ID != "" {
 		const prefix string = ",\"correlation_id\":"
+		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
 	}
 	if in.OriginalURL != "" {
 		const prefix string = ",\"original_url\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.OriginalURL))
 	}
 	if in.ShortURL != "" {
 		const prefix string = ",\"short_url\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.String(string(in.ShortURL))
 	}
 	out.RawByte('}')

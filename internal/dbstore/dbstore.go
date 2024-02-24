@@ -11,6 +11,7 @@ import (
 
 	"github.com/pressly/goose/v3"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -31,6 +32,9 @@ var sqlGetOriginalURL string
 
 //go:embed sql/insertURL.sql
 var sqlInsert string
+
+//go:embed sql/getUrlsByAuthor.sql
+var sqlGetUrlsByAuthor string
 
 type conf interface {
 	GetFileStoreName() string
@@ -126,8 +130,8 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
-	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original); err != nil {
+	userID := ctx.Value(config.UserCtxKey)
+	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original, userID); err != nil {
 		return fmt.Errorf("dbstore.add: write items: %w", err)
 	}
 	return nil
@@ -154,6 +158,10 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
+	userID := ctx.Value(config.UserCtxKey)
+	if userID == "" {
+		return batch, errors.New("upload batch, no user in context")
+	}
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	tx, err := s.db.BeginTx(tctx, nil)
@@ -164,12 +172,12 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 
 	stmtInsert, err := tx.PrepareContext(tctx, sqlInsert)
 	if err != nil {
-		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
+		return batch, fmt.Errorf("upload batch, prepare stmt: %w", err)
 	}
 	defer stmtInsert.Close()
 	stmtCheck, err := s.db.PrepareContext(tctx, sqlGetShortURL)
 	if err != nil {
-		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
+		return batch, fmt.Errorf("upload batch, prepare stmt: %w", err)
 	}
 	defer stmtCheck.Close()
 	for i := 0; i < len(batch); i++ {
@@ -177,17 +185,54 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 		err := stmtCheck.QueryRowContext(tctx, batch[i].OriginalURL).Scan(&dbOriginalURL)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL); err != nil {
+			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL, userID); err != nil {
 				tx.Rollback()
-				return batch, fmt.Errorf("batch insert %w", err)
+				return batch, fmt.Errorf("batch insert: %w", err)
 			}
 		case err != nil:
 			tx.Rollback()
-			return batch, fmt.Errorf("batch check %w", err)
+			return batch, fmt.Errorf("batch check: %w", err)
 		default:
 			batch[i].ShortURL = dbOriginalURL
 		}
 		batch[i].OriginalURL = ""
 	}
 	return batch, nil
+}
+
+func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var res jsonobject.Batch
+	userID := ctx.Value(config.UserCtxKey)
+	if userID == "" {
+		return res, errors.New("GetUserUrls, no user in context")
+	}
+
+	stmt, err := s.db.PrepareContext(tctx, sqlGetUrlsByAuthor)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserUrls, prepare stmt: %w", err)
+	}
+	defer stmt.Close()
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+	rows, err := stmt.QueryContext(tctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", err)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", rows.Err())
+	}
+
+	for rows.Next() {
+		var original string
+		var short string
+		err = rows.Scan(&short, &original)
+		if err != nil {
+			return nil, fmt.Errorf("GetUserUrls, scan db results %w", err)
+		}
+		res = append(res, jsonobject.BatchItem{OriginalURL: original, ShortURL: short})
+	}
+	return res, nil
+
 }

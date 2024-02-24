@@ -11,6 +11,9 @@ create table if not exists public.urls
 
 alter table if exists public.urls owner to postgres;
 
+ALTER TABLE IF EXISTS public.urls
+    ADD COLUMN "authorId" text NOT NULL;
+
 create index short_url on
 urls (short_url);
 
@@ -18,6 +21,7 @@ create index original_url on
 urls (original_url);
 
 alter table public.urls add constraint urls_original_unique unique (original_url);
+
 -- +goose StatementEnd
 
 -- +goose Down

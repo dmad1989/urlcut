@@ -19,6 +19,7 @@ type Store interface {
 	Ping(context.Context) error
 	CloseDB() error
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
+	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
 }
 
 type App struct {
@@ -106,4 +107,12 @@ func randStringBytes(n int) (string, error) {
 		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	res, err := a.storage.GetUserURLs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cutter: %w", err)
+	}
+	return res, nil
 }
