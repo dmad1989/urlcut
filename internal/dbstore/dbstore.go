@@ -11,13 +11,14 @@ import (
 
 	"github.com/pressly/goose/v3"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const timeout = time.Duration(time.Second * 10)
 
-//go:embed sql/migrations/*.sql
+//go:embed sql/migrations/00001_create_urls_table.sql
 var embedMigrations embed.FS
 
 //go:embed sql/checkTableExists.sql
@@ -35,11 +36,13 @@ var sqlInsert string
 type conf interface {
 	GetFileStoreName() string
 	GetDBConnName() string
+	GetUserContextKey() config.ContextKey
 }
 
 type storage struct {
-	rw sync.RWMutex
-	db *sql.DB
+	rw             sync.RWMutex
+	db             *sql.DB
+	usercontextKey config.ContextKey
 }
 
 func New(ctx context.Context, c conf) (*storage, error) {
@@ -55,7 +58,7 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	db.SetMaxOpenConns(50)
 
 	res := storage{rw: sync.RWMutex{},
-		db: db}
+		db: db, usercontextKey: c.GetUserContextKey()}
 
 	if err = res.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("check DB after create: %w", err)
@@ -126,8 +129,8 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	// TODO user param
-	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original); err != nil {
+	userId := ctx.Value(s.usercontextKey)
+	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original, userId); err != nil {
 		return fmt.Errorf("dbstore.add: write items: %w", err)
 	}
 	return nil

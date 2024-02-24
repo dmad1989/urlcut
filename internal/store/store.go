@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
@@ -17,18 +18,15 @@ import (
 type conf interface {
 	GetFileStoreName() string
 	GetDBConnName() string
-}
-
-type db interface {
-	Ping(context.Context) error
-	CloseDB() error
+	GetUserContextKey() config.ContextKey
 }
 
 type storage struct {
-	rw        sync.RWMutex
-	urlMap    map[string]string
-	revertMap map[string]string
-	fileName  string
+	rw             sync.RWMutex
+	urlMap         map[string]string
+	revertMap      map[string]string
+	fileName       string
+	usercontextKey config.ContextKey
 }
 
 func New(ctx context.Context, c conf) (*storage, error) {
@@ -39,10 +37,11 @@ func New(ctx context.Context, c conf) (*storage, error) {
 		fp = filepath.Dir(c.GetFileStoreName())
 	}
 	res := storage{
-		rw:        sync.RWMutex{},
-		fileName:  fn,
-		urlMap:    make(map[string]string),
-		revertMap: make(map[string]string),
+		rw:             sync.RWMutex{},
+		fileName:       fn,
+		urlMap:         make(map[string]string),
+		revertMap:      make(map[string]string),
+		usercontextKey: c.GetUserContextKey(),
 	}
 
 	if fn != "" {

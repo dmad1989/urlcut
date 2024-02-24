@@ -15,6 +15,12 @@ const (
 	// defDBDSN=
 )
 
+var userCtxKey = &ContextKey{"userId"}
+
+type ContextKey struct {
+	name string
+}
+
 var conf = Config{
 	url: defHost,
 }
@@ -73,4 +79,8 @@ func (c Config) GetFileStoreName() string {
 
 func (c Config) GetDBConnName() string {
 	return c.dbConnName
+}
+
+func (c Config) GetUserContextKey() ContextKey {
+	return *userCtxKey
 }

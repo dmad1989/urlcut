@@ -1,45 +1,45 @@
 package serverapi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 )
 
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID int
+	UserID string
 }
 
-var ErrorNoUser = errors.New("no userid in auth token")
-var ErrorInvalidToken = errors.New("auth token not valid")
+var (
+	ErrorNoUser       = errors.New("no userid in auth token")
+	ErrorInvalidToken = errors.New("auth token not valid")
+)
 
 const TOKEN_EXP = time.Hour * 6
 const SECRET_KEY = "gopracticumshoretenersecretkey"
 
-func checkToken(t string) (int, error) {
+func checkToken(t string) (string, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(t, claims,
 		func(t *jwt.Token) (interface{}, error) {
 			return []byte(SECRET_KEY), nil
 		})
 	if err != nil || !token.Valid {
-		return 0, ErrorInvalidToken
+		return "", ErrorInvalidToken
 	}
-	if claims.UserID == 0 {
-		return 0, ErrorNoUser
+	if claims.UserID == "" {
+		return "", ErrorNoUser
 	}
 	return claims.UserID, nil
 }
 
-func generateToken() (string, error) {
-	//TODO create new user // set to context
-	userId := 1
-
+func generateToken(userId string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TOKEN_EXP)),
@@ -55,28 +55,27 @@ func generateToken() (string, error) {
 	return tokenString, nil
 }
 
-func Auth(h http.Handler) http.Handler {
+func (s server) Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextW := w
 		val, err := (*http.Request).Cookie(r, "token")
 
 		if err != nil && !errors.Is(err, http.ErrNoCookie) {
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(fmt.Errorf("auth cookie: %w", err).Error()))
 			return
 		}
-		userId := 0
+		userId := ""
 		if !errors.Is(err, http.ErrNoCookie) {
 			userId, err = checkToken(val.Value)
 		}
-		logging.Log.Info("error", err)
-		is := errors.Is(err, ErrorInvalidToken)
-		logging.Log.Info("errors.Is(err, ErrorInvalidToken)", is)
+
 		switch {
 		case errors.Is(err, http.ErrNoCookie) || errors.Is(err, ErrorInvalidToken):
-			token, err := generateToken()
+			userId = createUserId()
+			token, err := generateToken(userId)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
+				w.WriteHeader(http.StatusUnauthorized)
 				w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
 				return
 			}
@@ -87,14 +86,16 @@ func Auth(h http.Handler) http.Handler {
 			w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
 			return
 		case err != nil:
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
 			return
-		default:
-			fmt.Println("userId ", userId)
-			//todo set to context
 		}
-
-		h.ServeHTTP(nextW, r)
+		newCtx := context.WithValue(r.Context(), s.config.GetUserContextKey(), userId)
+		h.ServeHTTP(nextW, r.WithContext(newCtx))
 	})
+}
+
+func createUserId() string {
+	u := uuid.New()
+	return u.String()
 }

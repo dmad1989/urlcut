@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
@@ -27,6 +28,7 @@ type app interface {
 type conf interface {
 	GetURL() string
 	GetShortAddress() string
+	GetUserContextKey() config.ContextKey
 }
 
 type server struct {
@@ -42,7 +44,7 @@ func New(cutApp app, config conf) *server {
 }
 
 func (s server) initHandlers() {
-	s.mux.Use(logging.WithLog, Auth, gzipMiddleware)
+	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
 	s.mux.Post("/api/shorten", s.cutterJSONHandler)
