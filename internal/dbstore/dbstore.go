@@ -39,13 +39,11 @@ var sqlGetUrlsByAuthor string
 type conf interface {
 	GetFileStoreName() string
 	GetDBConnName() string
-	GetUserContextKey() config.ContextKey
 }
 
 type storage struct {
-	rw             sync.RWMutex
-	db             *sql.DB
-	usercontextKey config.ContextKey
+	rw sync.RWMutex
+	db *sql.DB
 }
 
 func New(ctx context.Context, c conf) (*storage, error) {
@@ -61,7 +59,7 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	db.SetMaxOpenConns(50)
 
 	res := storage{rw: sync.RWMutex{},
-		db: db, usercontextKey: c.GetUserContextKey()}
+		db: db}
 
 	if err = res.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("check DB after create: %w", err)
@@ -132,7 +130,7 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	userID := ctx.Value(s.usercontextKey)
+	userID := ctx.Value(config.UserCtxKey)
 	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original, userID); err != nil {
 		return fmt.Errorf("dbstore.add: write items: %w", err)
 	}
@@ -160,7 +158,7 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
-	userID := ctx.Value(s.usercontextKey)
+	userID := ctx.Value(config.UserCtxKey)
 	if userID == "" {
 		return batch, errors.New("upload batch, no user in context")
 	}
@@ -206,7 +204,7 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var res jsonobject.Batch
-	userID := ctx.Value(s.usercontextKey)
+	userID := ctx.Value(config.UserCtxKey)
 	if userID == "" {
 		return res, errors.New("GetUserUrls, no user in context")
 	}

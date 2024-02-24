@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
@@ -58,8 +59,7 @@ func generateToken(userID string) (string, error) {
 func (s server) Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextW := w
-		val, err := (*http.Request).Cookie(r, "token")
-
+		tCookie, err := r.Cookie("token")
 		if err != nil && !errors.Is(err, http.ErrNoCookie) {
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(fmt.Errorf("auth cookie: %w", err).Error()))
@@ -67,11 +67,10 @@ func (s server) Auth(h http.Handler) http.Handler {
 		}
 		userID := ""
 		if !errors.Is(err, http.ErrNoCookie) {
-			userID, err = checkToken(val.Value)
+			userID, err = checkToken(tCookie.Value)
 		}
-
 		switch {
-		case errors.Is(err, ErrorInvalidToken):
+		case errors.Is(err, http.ErrNoCookie) || errors.Is(err, ErrorInvalidToken):
 			userID = createUserID()
 			token, err := generateToken(userID)
 			if err != nil {
@@ -79,19 +78,20 @@ func (s server) Auth(h http.Handler) http.Handler {
 				w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
 				return
 			}
-			cookie := http.Cookie{Name: "token", Value: token}
+			cookie := http.Cookie{
+				Name:  "token",
+				Value: token,
+				Path:  "/",
+			}
 			http.SetCookie(w, &cookie)
-		case errors.Is(err, http.ErrNoCookie) || errors.Is(err, ErrorNoUser):
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
-			return
 		case err != nil:
 			w.WriteHeader(http.StatusUnauthorized)
 			w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
 			return
 		}
-		newCtx := context.WithValue(r.Context(), s.config.GetUserContextKey(), userID)
-		h.ServeHTTP(nextW, r.WithContext(newCtx))
+		ctx := context.WithValue(r.Context(), config.UserCtxKey, userID)
+		ctx = context.WithValue(ctx, config.ErrorCtxKey, err)
+		h.ServeHTTP(nextW, r.WithContext(ctx))
 	})
 }
 

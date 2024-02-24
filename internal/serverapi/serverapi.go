@@ -30,7 +30,6 @@ type app interface {
 type conf interface {
 	GetURL() string
 	GetShortAddress() string
-	GetUserContextKey() config.ContextKey
 }
 
 type server struct {
@@ -250,6 +249,12 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 }
 
 func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
+	err, _ := req.Context().Value(config.ErrorCtxKey).(error)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
 	urls, err := s.cutterApp.GetUserURLs(req.Context())
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
