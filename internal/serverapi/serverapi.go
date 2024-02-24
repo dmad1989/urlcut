@@ -2,6 +2,7 @@ package serverapi
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ type app interface {
 	GetKeyByValue(cxt context.Context, value string) (res string, err error)
 	PingDB(context.Context) error
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
+	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
 }
 
 type conf interface {
@@ -47,9 +49,10 @@ func (s server) initHandlers() {
 	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
+	s.mux.Get("/ping", s.pingHandler)
 	s.mux.Post("/api/shorten", s.cutterJSONHandler)
 	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
-	s.mux.Get("/ping", s.pingHandler)
+	s.mux.Get("/api/user/urls", s.userUrlsHandler)
 }
 
 func (s server) Run(ctx context.Context) error {
@@ -240,7 +243,32 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 	res.WriteHeader(http.StatusCreated)
 	respb, err := batchResponse.MarshalJSON()
 	if err != nil {
-		responseError(res, fmt.Errorf("cutterJsonHandler: encoding response: %w", err))
+		responseError(res, fmt.Errorf("JSONBatchHandler: encoding response: %w", err))
+		return
+	}
+	res.Write(respb)
+}
+
+func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
+	urls, err := s.cutterApp.GetUserURLs(req.Context())
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			res.WriteHeader(http.StatusNoContent)
+			return
+		}
+		responseError(res, fmt.Errorf("userUrlsHandler: getting all urls: %w", err))
+	}
+
+	if len(urls) == 0 {
+		res.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	respb, err := urls.MarshalJSON()
+	if err != nil {
+		responseError(res, fmt.Errorf("userUrlsHandler: encoding response: %w", err))
 		return
 	}
 	res.Write(respb)

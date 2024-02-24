@@ -33,6 +33,9 @@ var sqlGetOriginalURL string
 //go:embed sql/insertURL.sql
 var sqlInsert string
 
+//go:embed sql/getUrlsByAuthor.sql
+var sqlGetUrlsByAuthor string
+
 type conf interface {
 	GetFileStoreName() string
 	GetDBConnName() string
@@ -167,12 +170,12 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 
 	stmtInsert, err := tx.PrepareContext(tctx, sqlInsert)
 	if err != nil {
-		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
+		return batch, fmt.Errorf("upload batch, prepare stmt: %w", err)
 	}
 	defer stmtInsert.Close()
 	stmtCheck, err := s.db.PrepareContext(tctx, sqlGetShortURL)
 	if err != nil {
-		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
+		return batch, fmt.Errorf("upload batch, prepare stmt: %w", err)
 	}
 	defer stmtCheck.Close()
 	for i := 0; i < len(batch); i++ {
@@ -182,15 +185,48 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 		case errors.Is(err, sql.ErrNoRows):
 			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL); err != nil {
 				tx.Rollback()
-				return batch, fmt.Errorf("batch insert %w", err)
+				return batch, fmt.Errorf("batch insert: %w", err)
 			}
 		case err != nil:
 			tx.Rollback()
-			return batch, fmt.Errorf("batch check %w", err)
+			return batch, fmt.Errorf("batch check: %w", err)
 		default:
 			batch[i].ShortURL = dbOriginalURL
 		}
 		batch[i].OriginalURL = ""
 	}
 	return batch, nil
+}
+
+func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var res jsonobject.Batch
+	userId := ctx.Value(s.usercontextKey)
+	if userId == "" {
+		return res, errors.New("GetUserUrls, no user in context")
+	}
+
+	stmt, err := s.db.PrepareContext(tctx, sqlGetUrlsByAuthor)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserUrls, prepare stmt: %w", err)
+	}
+	defer stmt.Close()
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+	rows, err := stmt.QueryContext(tctx, userId)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", err)
+	}
+	for rows.Next() {
+		var original string
+		var short string
+		err = rows.Scan(&short, &original)
+		if err != nil {
+			return nil, fmt.Errorf("GetUserUrls, scan db results %w", err)
+		}
+		res = append(res, jsonobject.BatchItem{OriginalURL: original, ShortURL: short})
+	}
+	return res, nil
+
 }

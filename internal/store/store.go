@@ -218,3 +218,6 @@ func createIfNeeded(path string, fileName string) error {
 
 	return err
 }
+func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	return nil, nil
+}
