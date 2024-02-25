@@ -296,6 +296,22 @@ func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 		http.Error(res, err.Error(), http.StatusUnauthorized)
 		return
 	}
+	var ids jsonobject.ShortIds
+	if req.Header.Get("Content-Type") != "application/json" {
+		responseError(res, fmt.Errorf("deleteUserUrlsHandler: content-type have to be application/json"))
+		return
+	}
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		responseError(res, fmt.Errorf("deleteUserUrlsHandler: reading request body: %w", err))
+		return
+	}
+
+	if err := ids.UnmarshalJSON(body); err != nil {
+		responseError(res, fmt.Errorf("JSONBatchHandler: decoding request: %w", err))
+		return
+	}
+
 	//TODO
 	// s.cutterApp.
 	res.WriteHeader(http.StatusAccepted)

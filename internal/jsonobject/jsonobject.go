@@ -26,3 +26,6 @@ type Request struct {
 type Response struct {
 	Result string `json:"result"`
 }
+
+//easyjson:json
+type ShortIds []string
