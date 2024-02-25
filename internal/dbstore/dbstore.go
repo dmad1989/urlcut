@@ -36,6 +36,9 @@ var sqlInsert string
 //go:embed sql/getUrlsByAuthor.sql
 var sqlGetUrlsByAuthor string
 
+//go:embed sql/markDelete.sql
+var sqlMarkDelete string
+
 type conf interface {
 	GetFileStoreName() string
 	GetDBConnName() string

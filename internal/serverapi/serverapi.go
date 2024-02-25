@@ -53,6 +53,7 @@ func (s server) initHandlers() {
 	s.mux.Post("/api/shorten", s.cutterJSONHandler)
 	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
 	s.mux.Get("/api/user/urls", s.userUrlsHandler)
+	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
 }
 
 func (s server) Run(ctx context.Context) error {
@@ -287,4 +288,15 @@ func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	res.Write(respb)
+}
+
+func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request) {
+	err, _ := req.Context().Value(config.ErrorCtxKey).(error)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	//TODO
+	// s.cutterApp.
+	res.WriteHeader(http.StatusAccepted)
 }
