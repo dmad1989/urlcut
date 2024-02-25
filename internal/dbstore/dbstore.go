@@ -137,19 +137,24 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	return nil
 }
 
+var ErrorDeletedURL = errors.New("url was deleted")
+
 func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	sURL := ""
-	err := s.db.QueryRowContext(tctx, sqlGetOriginalURL, value).Scan(&sURL)
+	isDeleted := false
+	err := s.db.QueryRowContext(tctx, sqlGetOriginalURL, value).Scan(&sURL, &isDeleted)
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return "", fmt.Errorf("no data found in db for value %s", value)
 	case err != nil:
 		return "", fmt.Errorf("dbstore.GetOriginalURL select: %w", err)
+	case isDeleted:
+		return "", ErrorDeletedURL
 	default:
 		return sURL, nil
 	}

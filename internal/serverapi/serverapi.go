@@ -13,6 +13,7 @@ import (
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
+	"github.com/dmad1989/urlcut/internal/dbstore"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
@@ -166,6 +167,11 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 
 	redirectURL, err := s.cutterApp.GetKeyByValue(req.Context(), path)
 	if err != nil {
+		if errors.Is(err, dbstore.ErrorDeletedURL) {
+			res.WriteHeader(http.StatusGone)
+			res.Write([]byte(err.Error()))
+			return
+		}
 		responseError(res, fmt.Errorf("redirectHandler: fetching url fo redirect: %w", err))
 		return
 	}
