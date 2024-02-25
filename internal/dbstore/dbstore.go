@@ -39,6 +39,9 @@ var sqlGetUrlsByAuthor string
 //go:embed sql/markDelete.sql
 var sqlMarkDelete string
 
+//go:embed sql/checkUserURLExists.sql
+var sqlCheckUserURLExists string
+
 type conf interface {
 	GetFileStoreName() string
 	GetDBConnName() string
@@ -242,5 +245,22 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 		res = append(res, jsonobject.BatchItem{OriginalURL: original, ShortURL: short})
 	}
 	return res, nil
+}
 
+func (s *storage) CheckIsUserURL(ctx context.Context, shortURL string) (bool, error) {
+	res := false
+	userID := ctx.Value(config.UserCtxKey)
+	if userID == "" {
+		return res, errors.New("CheckIsUserURL, no user in context")
+	}
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+	err := s.db.QueryRowContext(tctx, sqlCheckUserURLExists, shortURL, userID).Scan(&res)
+
+	if err != nil {
+		return false, fmt.Errorf("dbstore.CheckIsUserURL : %w", err)
+	}
+	return res, nil
 }

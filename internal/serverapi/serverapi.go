@@ -26,6 +26,7 @@ type app interface {
 	PingDB(context.Context) error
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
+	DeleteUrls(ctx context.Context, ids jsonobject.ShortIds)
 }
 
 type conf interface {
@@ -308,11 +309,10 @@ func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 	}
 
 	if err := ids.UnmarshalJSON(body); err != nil {
-		responseError(res, fmt.Errorf("JSONBatchHandler: decoding request: %w", err))
+		responseError(res, fmt.Errorf("deleteUserUrlsHandler: decoding request: %w", err))
 		return
 	}
 
-	//TODO
-	// s.cutterApp.
+	go s.cutterApp.DeleteUrls(req.Context(), ids)
 	res.WriteHeader(http.StatusAccepted)
 }
