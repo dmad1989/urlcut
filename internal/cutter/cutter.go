@@ -11,6 +11,7 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.uber.org/zap"
 )
 
 type Store interface {
@@ -129,17 +130,15 @@ func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 	if numWorkers > 10 {
 		numWorkers = 10
 	}
-	logging.Log.Infof("DeleteUrls user %s, ids %v", userID, ids)
 	idsCh := generator(ctx, ids)
 	chs, err := a.checks(ctx, numWorkers, idsCh, userID)
 	if err != nil {
-		logging.Log.Fatal(fmt.Errorf("DeleteURLs: %w", err))
+		logging.Log.Error(fmt.Errorf("DeleteURLs: %w", err))
 		cancel()
 	}
-	logging.Log.Infof("checkUrls DeleteURLs")
 	err = a.storage.DeleteURLs(ctx, chs...)
 	if err != nil {
-		logging.Log.Fatal(fmt.Errorf("DeleteURLs: %w", err))
+		logging.Log.Error(fmt.Errorf("DeleteURLs: %w", err))
 		cancel()
 	}
 }
@@ -178,12 +177,11 @@ func (a *App) checkUrls(ctx context.Context, idsCh chan string, userID string) (
 	resCh := make(chan string)
 	go func() {
 		defer close(resCh)
-		logging.Log.Infof("checkUrls")
 
 		for id := range idsCh {
 			ok, err := a.storage.CheckIsUserURL(nctx, userID, id)
 			if err != nil {
-				logging.Log.Infof("for url %s for user %s : %w", id, userID, err)
+				logging.Log.Errorw("Error on checkUrls", zap.String("URL", id), zap.String("user", userID), zap.Error(err))
 				cancel()
 			}
 			if ok {
@@ -192,6 +190,5 @@ func (a *App) checkUrls(ctx context.Context, idsCh chan string, userID string) (
 		}
 	}()
 
-	logging.Log.Infof("checkUrls done")
 	return resCh, nil
 }
