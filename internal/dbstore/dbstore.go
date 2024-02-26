@@ -10,9 +10,12 @@ import (
 	"time"
 
 	"github.com/pressly/goose/v3"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/logging"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -247,20 +250,53 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	return res, nil
 }
 
-func (s *storage) CheckIsUserURL(ctx context.Context, shortURL string) (bool, error) {
+func (s *storage) CheckIsUserURL(ctx context.Context, userID string, shortURL string) (bool, error) {
 	res := false
-	userID := ctx.Value(config.UserCtxKey)
-	if userID == "" {
-		return res, errors.New("CheckIsUserURL, no user in context")
-	}
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	s.rw.RLock()
 	defer s.rw.RUnlock()
 	err := s.db.QueryRowContext(tctx, sqlCheckUserURLExists, shortURL, userID).Scan(&res)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return false, fmt.Errorf("dbstore.CheckIsUserURL : %w", err)
 	}
 	return res, nil
+}
+
+func (s *storage) DeleteURLs(ctx context.Context, idsChs ...chan string) error {
+	g := new(errgroup.Group)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("DeleteURLs, transation begin: %w", err)
+	}
+
+	stmt, err := tx.PrepareContext(ctx, sqlMarkDelete)
+	if err != nil {
+		return fmt.Errorf("DeleteURLs, prepare stmt: %w", err)
+	}
+	for _, ch := range idsChs {
+		ch := ch
+		g.Go(func() error {
+			for id := range ch {
+				if _, err = stmt.ExecContext(ctx, id); err != nil {
+					return fmt.Errorf("on url: %w", err)
+				}
+				logging.Log.Infow("was deleted", zap.String("URL", id))
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("DeleteURLs: not deleted: %w", err)
+	}
+	s.rw.Lock()
+	defer s.rw.Unlock()
+	if err = tx.Commit(); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("DeleteURLs: on transaction commit: %w", err)
+	}
+	logging.Log.Infow("sucsess")
+	return nil
 }

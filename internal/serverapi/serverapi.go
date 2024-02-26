@@ -26,7 +26,7 @@ type app interface {
 	PingDB(context.Context) error
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
-	DeleteUrls(ctx context.Context, ids jsonobject.ShortIds)
+	DeleteUrls(userID string, ids jsonobject.ShortIds)
 }
 
 type conf interface {
@@ -312,7 +312,17 @@ func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 		responseError(res, fmt.Errorf("deleteUserUrlsHandler: decoding request: %w", err))
 		return
 	}
+	user := req.Context().Value(config.UserCtxKey)
+	if user == nil {
+		responseError(res, errors.New("CheckIsUserURL, no user in context"))
+		return
+	}
 
-	go s.cutterApp.DeleteUrls(req.Context(), ids)
+	userID, ok := user.(string)
+	if !ok {
+		responseError(res, errors.New("CheckIsUserURL, wrong user type in context"))
+		return
+	}
+	go s.cutterApp.DeleteUrls(userID, ids)
 	res.WriteHeader(http.StatusAccepted)
 }

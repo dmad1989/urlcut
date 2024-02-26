@@ -21,7 +21,8 @@ type Store interface {
 	CloseDB() error
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
-	CheckIsUserURL(ctx context.Context, shortURL string) (bool, error)
+	CheckIsUserURL(ctx context.Context, userID string, shortURL string) (bool, error)
+	DeleteURLs(ctx context.Context, idsChs ...chan string) error
 }
 
 type App struct {
@@ -119,31 +120,37 @@ func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	return res, nil
 }
 
-func (a *App) DeleteUrls(ctx context.Context, ids jsonobject.ShortIds) {
+func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 	numWorkers := len(ids)
 	if numWorkers > 10 {
 		numWorkers = 10
 	}
-	idsCh := generator(doneCh, ids)
-
-	channels := make([]chan string, numWorkers)
-
-	for i := 0; i < numWorkers; i++ {
-		addResultCh := a.checkUrls(ctx, doneCh, idsCh)
-		channels[i] = addResultCh
+	logging.Log.Infof("DeleteUrls user %s, ids %v", userID, ids)
+	idsCh := generator(ctx, ids)
+	chs, err := a.checks(ctx, numWorkers, idsCh, userID)
+	if err != nil {
+		logging.Log.Fatal(fmt.Errorf("DeleteURLs: %w", err))
+		cancel()
 	}
-	// fanIn for transaction update
+	logging.Log.Infof("checkUrls DeleteURLs")
+	err = a.storage.DeleteURLs(ctx, chs...)
+	if err != nil {
+		logging.Log.Fatal(fmt.Errorf("DeleteURLs: %w", err))
+		cancel()
+	}
 }
 
-func generator(doneCh chan struct{}, ids jsonobject.ShortIds) chan string {
+func generator(ctx context.Context, ids jsonobject.ShortIds) chan string {
 	inCh := make(chan string)
 	go func() {
 		defer close(inCh)
 		for _, id := range ids {
 			select {
-			case <-doneCh:
+			case <-ctx.Done():
 				return
 			case inCh <- id:
 			}
@@ -152,45 +159,39 @@ func generator(doneCh chan struct{}, ids jsonobject.ShortIds) chan string {
 	return inCh
 }
 
+func (a *App) checks(ctx context.Context, numWorkers int, idsCh chan string, userID string) ([]chan string, error) {
+	chs := make([]chan string, numWorkers)
+
+	for i := 0; i < numWorkers; i++ {
+		ch, err := a.checkUrls(ctx, idsCh, userID)
+		if err != nil {
+			return nil, fmt.Errorf("cutter checks: %w", err)
+		}
+		chs[i] = ch
+	}
+	return chs, nil
+}
+
 // проверяет автора сокращения
-func (a *App) checkUrls(ctx context.Context, doneCh chan struct{}, idsCh chan string) chan string {
+func (a *App) checkUrls(ctx context.Context, idsCh chan string, userID string) (chan string, error) {
+	nctx, cancel := context.WithCancel(ctx)
 	resCh := make(chan string)
 	go func() {
 		defer close(resCh)
+		logging.Log.Infof("checkUrls")
 
-	loop:
-		for {
-			select {
-			case <-doneCh:
-				return
-			case id, ok := <-idsCh:
-				if !ok {
-					break loop
-				}
-				ok, err := a.storage.CheckIsUserURL(ctx, id)
-				if err != nil {
-					logging.Log.Fatal(fmt.Errorf("check Urls: %w", err))
-					return
-				}
-				if ok {
-					resCh <- id
-				}
+		for id := range idsCh {
+			ok, err := a.storage.CheckIsUserURL(nctx, userID, id)
+			if err != nil {
+				logging.Log.Infof("for url %s for user %s : %w", id, userID, err)
+				cancel()
+			}
+			if ok {
+				resCh <- id
 			}
 		}
-
-		// for data := range idsCh {
-		// 	ok, err := a.storage.CheckIsUserURL(ctx, data)
-		// 	if err != nil {
-		// 		fmt.Errorf("check Urls: %w", err)
-		// 	}
-		// 	if ok {
-		// 		select {
-		// 		case <-doneCh:
-		// 			return
-		// 		case resCh <- data:
-		// 		}
-		// 	}
-		// }
 	}()
-	return resCh
+
+	logging.Log.Infof("checkUrls done")
+	return resCh, nil
 }
