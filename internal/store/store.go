@@ -218,10 +218,6 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	return nil, nil
 }
 
-func (s *storage) CheckIsUserURL(ctx context.Context, userID string, shortURL string) (bool, error) {
-	return false, errors.New("unsupported store method")
-}
-
-func (s *storage) DeleteURLs(ctx context.Context, idsChs ...chan string) error {
+func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
 	return errors.New("unsupported store method")
 }

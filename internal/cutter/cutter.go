@@ -6,12 +6,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
-	"go.uber.org/zap"
 )
 
 type Store interface {
@@ -22,8 +22,7 @@ type Store interface {
 	CloseDB() error
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
-	CheckIsUserURL(ctx context.Context, userID string, shortURL string) (bool, error)
-	DeleteURLs(ctx context.Context, idsChs ...chan string) error
+	DeleteURLs(ctx context.Context, userID string, ids []string) error
 }
 
 type App struct {
@@ -123,72 +122,40 @@ func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 
 func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	doneCh := make(chan struct{})
-	defer close(doneCh)
-	numWorkers := len(ids)
-	if numWorkers > 10 {
-		numWorkers = 10
+	bs := 100
+	if len(ids) < 100 {
+		bs = len(ids)
 	}
-	idsCh := generator(ctx, ids)
-	chs, err := a.checks(ctx, numWorkers, idsCh, userID)
-	if err != nil {
-		logging.Log.Error(fmt.Errorf("DeleteURLs: %w", err))
-		cancel()
+	batch := make([]string, 0)
+	var wg sync.WaitGroup
+	batchCh := make(chan []string)
+	writeBatch := func(ctx context.Context, bCh chan []string) {
+		select {
+		case <-ctx.Done():
+			return
+		case b := <-bCh:
+			err := a.storage.DeleteURLs(ctx, userID, b)
+			if err != nil {
+				logging.Log.Error(fmt.Errorf("DeleteURLs: %w", err))
+				cancel()
+			}
+		}
 	}
-	err = a.storage.DeleteURLs(ctx, chs...)
-	if err != nil {
-		logging.Log.Error(fmt.Errorf("DeleteURLs: %w", err))
-		cancel()
-	}
-}
-
-func generator(ctx context.Context, ids jsonobject.ShortIds) chan string {
-	inCh := make(chan string)
-	go func() {
-		defer close(inCh)
-		for _, id := range ids {
+	for i, id := range ids {
+		batch = append(batch, id)
+		if (i+1)%bs == 0 || (i+1) == len(ids) {
+			wg.Add(1)
+			go writeBatch(ctx, batchCh)
 			select {
 			case <-ctx.Done():
 				return
-			case inCh <- id:
+			case batchCh <- batch:
 			}
+			batch = batch[:0]
 		}
-	}()
-	return inCh
-}
-
-func (a *App) checks(ctx context.Context, numWorkers int, idsCh chan string, userID string) ([]chan string, error) {
-	chs := make([]chan string, numWorkers)
-
-	for i := 0; i < numWorkers; i++ {
-		ch, err := a.checkUrls(ctx, idsCh, userID)
-		if err != nil {
-			return nil, fmt.Errorf("cutter checks: %w", err)
-		}
-		chs[i] = ch
 	}
-	return chs, nil
-}
-
-// проверяет автора сокращения
-func (a *App) checkUrls(ctx context.Context, idsCh chan string, userID string) (chan string, error) {
-	nctx, cancel := context.WithCancel(ctx)
-	resCh := make(chan string)
 	go func() {
-		defer close(resCh)
-
-		for id := range idsCh {
-			ok, err := a.storage.CheckIsUserURL(nctx, userID, id)
-			if err != nil {
-				logging.Log.Errorw("Error on checkUrls", zap.String("URL", id), zap.String("user", userID), zap.Error(err))
-				cancel()
-			}
-			if ok {
-				resCh <- id
-			}
-		}
+		wg.Wait()
+		close(batchCh)
 	}()
-
-	return resCh, nil
 }
