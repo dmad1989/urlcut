@@ -130,6 +130,7 @@ func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 	var wg sync.WaitGroup
 	batchCh := make(chan []string)
 	writeBatch := func(ctx context.Context, bCh chan []string) {
+		defer wg.Done()
 		select {
 		case <-ctx.Done():
 			return

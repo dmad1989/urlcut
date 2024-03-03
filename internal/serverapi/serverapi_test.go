@@ -204,7 +204,7 @@ func checkPostBody(res *http.Response, t *testing.T, wantedPattern string, wante
 	}
 }
 
-func doCut(t *testing.T, servStruct *server, testserver *httptest.Server) (string, error) {
+func doCut(t *testing.T, testserver *httptest.Server) (string, error) {
 	request, err := http.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL))
 	require.NoError(t, err)
 	res, err := testserver.Client().Do(request)
@@ -230,9 +230,9 @@ func TestRedirectHandler(t *testing.T) {
 		code        int
 		bodyMessage string
 	}
-	serv, testserver := initEnv()
+	_, testserver := initEnv()
 	defer testserver.Close()
-	redirectedURL, err := doCut(t, serv, testserver)
+	redirectedURL, err := doCut(t, testserver)
 	require.NoError(t, err)
 	tests := []struct {
 		name    string
