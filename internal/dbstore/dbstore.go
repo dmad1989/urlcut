@@ -6,7 +6,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/pressly/goose/v3"
@@ -46,7 +45,6 @@ type conf interface {
 }
 
 type storage struct {
-	rw sync.RWMutex
 	db *sql.DB
 }
 
@@ -62,7 +60,7 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	db.SetMaxIdleConns(50)
 	db.SetMaxOpenConns(50)
 
-	res := storage{rw: sync.RWMutex{},
+	res := storage{
 		db: db}
 
 	if err = res.Ping(ctx); err != nil {
@@ -95,8 +93,6 @@ func New(ctx context.Context, c conf) (*storage, error) {
 }
 
 func (s *storage) Ping(ctx context.Context) error {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	err := s.db.PingContext(ctx)
 	if err != nil {
 		return fmt.Errorf("ping db: %w", err)
@@ -112,8 +108,6 @@ func (s *storage) CloseDB() error {
 }
 
 func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	sURL := ""
@@ -130,8 +124,6 @@ func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 }
 
 func (s *storage) Add(ctx context.Context, original, short string) error {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	userID := ctx.Value(config.UserCtxKey)
@@ -144,8 +136,6 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 var ErrorDeletedURL = errors.New("url was deleted")
 
 func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, error) {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	sURL := ""
@@ -165,8 +155,6 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 }
 
 func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	userID := ctx.Value(config.UserCtxKey)
 	if userID == "" {
 		return batch, errors.New("upload batch, no user in context")
@@ -223,8 +211,6 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 		return nil, fmt.Errorf("GetUserUrls, prepare stmt: %w", err)
 	}
 	defer stmt.Close()
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	rows, err := stmt.QueryContext(tctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", err)
@@ -260,8 +246,6 @@ func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) e
 			return fmt.Errorf("on url: %w", err)
 		}
 	}
-	s.rw.Lock()
-	defer s.rw.Unlock()
 	if err = tx.Commit(); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("DeleteURLs: on transaction commit: %w", err)
