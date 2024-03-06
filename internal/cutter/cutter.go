@@ -6,13 +6,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+const batchSize = 100
 
 type Store interface {
 	GetShortURL(ctx context.Context, key string) (string, error)
@@ -122,41 +123,29 @@ func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 
 func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 	ctx, cancel := context.WithCancel(context.Background())
-	bs := 100
-	if len(ids) < 100 {
-		bs = len(ids)
+	bs := batchSize
+	lenIds := len(ids)
+	if lenIds < batchSize {
+		bs = lenIds
 	}
-	batch := make([]string, 0)
-	var wg sync.WaitGroup
 	batchCh := make(chan []string)
-	writeBatch := func(ctx context.Context, bCh chan []string) {
-		defer wg.Done()
-		select {
-		case <-ctx.Done():
-			return
-		case b := <-bCh:
+	go func(ctx context.Context, bCh chan []string) {
+		for b := range bCh {
 			err := a.storage.DeleteURLs(ctx, userID, b)
 			if err != nil {
 				logging.Log.Error(fmt.Errorf("DeleteURLs: %w", err))
 				cancel()
 			}
 		}
-	}
-	for i, id := range ids {
-		batch = append(batch, id)
-		if (i+1)%bs == 0 || (i+1) == len(ids) {
-			wg.Add(1)
-			go writeBatch(ctx, batchCh)
-			select {
-			case <-ctx.Done():
-				return
-			case batchCh <- batch:
-			}
-			batch = batch[:0]
+	}(ctx, batchCh)
+
+	for i := 0; i < lenIds; i = i + min(bs, lenIds-i) {
+		j := i + min(bs, lenIds-i)
+		select {
+		case <-ctx.Done():
+			return
+		case batchCh <- ids[i:j]:
 		}
 	}
-	go func() {
-		wg.Wait()
-		close(batchCh)
-	}()
+	close(batchCh)
 }
