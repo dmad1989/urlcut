@@ -6,12 +6,13 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/pressly/goose/v3"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/logging"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -32,13 +33,18 @@ var sqlGetOriginalURL string
 //go:embed sql/insertURL.sql
 var sqlInsert string
 
+//go:embed sql/getUrlsByAuthor.sql
+var sqlGetUrlsByAuthor string
+
+//go:embed sql/markDelete.sql
+var sqlMarkDelete string
+
 type conf interface {
 	GetFileStoreName() string
 	GetDBConnName() string
 }
 
 type storage struct {
-	rw sync.RWMutex
 	db *sql.DB
 }
 
@@ -54,7 +60,7 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	db.SetMaxIdleConns(50)
 	db.SetMaxOpenConns(50)
 
-	res := storage{rw: sync.RWMutex{},
+	res := storage{
 		db: db}
 
 	if err = res.Ping(ctx); err != nil {
@@ -87,8 +93,6 @@ func New(ctx context.Context, c conf) (*storage, error) {
 }
 
 func (s *storage) Ping(ctx context.Context) error {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	err := s.db.PingContext(ctx)
 	if err != nil {
 		return fmt.Errorf("ping db: %w", err)
@@ -104,8 +108,6 @@ func (s *storage) CloseDB() error {
 }
 
 func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	sURL := ""
@@ -122,38 +124,41 @@ func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 }
 
 func (s *storage) Add(ctx context.Context, original, short string) error {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
-	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original); err != nil {
+	userID := ctx.Value(config.UserCtxKey)
+	if _, err := s.db.ExecContext(tctx, sqlInsert, short, original, userID); err != nil {
 		return fmt.Errorf("dbstore.add: write items: %w", err)
 	}
 	return nil
 }
 
+var ErrorDeletedURL = errors.New("url was deleted")
+
 func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, error) {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	sURL := ""
-	err := s.db.QueryRowContext(tctx, sqlGetOriginalURL, value).Scan(&sURL)
+	isDeleted := false
+	err := s.db.QueryRowContext(tctx, sqlGetOriginalURL, value).Scan(&sURL, &isDeleted)
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return "", fmt.Errorf("no data found in db for value %s", value)
 	case err != nil:
 		return "", fmt.Errorf("dbstore.GetOriginalURL select: %w", err)
+	case isDeleted:
+		return "", ErrorDeletedURL
 	default:
 		return sURL, nil
 	}
 }
 
 func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
-	s.rw.RLock()
-	defer s.rw.RUnlock()
+	userID := ctx.Value(config.UserCtxKey)
+	if userID == "" {
+		return batch, errors.New("upload batch, no user in context")
+	}
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	tx, err := s.db.BeginTx(tctx, nil)
@@ -164,12 +169,12 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 
 	stmtInsert, err := tx.PrepareContext(tctx, sqlInsert)
 	if err != nil {
-		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
+		return batch, fmt.Errorf("upload batch, prepare stmt: %w", err)
 	}
 	defer stmtInsert.Close()
 	stmtCheck, err := s.db.PrepareContext(tctx, sqlGetShortURL)
 	if err != nil {
-		return batch, fmt.Errorf("upload batch,, prepare stmt: %w", err)
+		return batch, fmt.Errorf("upload batch, prepare stmt: %w", err)
 	}
 	defer stmtCheck.Close()
 	for i := 0; i < len(batch); i++ {
@@ -177,17 +182,74 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 		err := stmtCheck.QueryRowContext(tctx, batch[i].OriginalURL).Scan(&dbOriginalURL)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL); err != nil {
+			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL, userID); err != nil {
 				tx.Rollback()
-				return batch, fmt.Errorf("batch insert %w", err)
+				return batch, fmt.Errorf("batch insert: %w", err)
 			}
 		case err != nil:
 			tx.Rollback()
-			return batch, fmt.Errorf("batch check %w", err)
+			return batch, fmt.Errorf("batch check: %w", err)
 		default:
 			batch[i].ShortURL = dbOriginalURL
 		}
 		batch[i].OriginalURL = ""
 	}
 	return batch, nil
+}
+
+func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var res jsonobject.Batch
+	userID := ctx.Value(config.UserCtxKey)
+	if userID == "" {
+		return res, errors.New("GetUserUrls, no user in context")
+	}
+
+	stmt, err := s.db.PrepareContext(tctx, sqlGetUrlsByAuthor)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserUrls, prepare stmt: %w", err)
+	}
+	defer stmt.Close()
+	rows, err := stmt.QueryContext(tctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", err)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("GetUserUrls, QueryContext: %w", rows.Err())
+	}
+
+	for rows.Next() {
+		var original string
+		var short string
+		err = rows.Scan(&short, &original)
+		if err != nil {
+			return nil, fmt.Errorf("GetUserUrls, scan db results %w", err)
+		}
+		res = append(res, jsonobject.BatchItem{OriginalURL: original, ShortURL: short})
+	}
+	return res, nil
+}
+
+func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("DeleteURLs, transation begin: %w", err)
+	}
+
+	stmt, err := tx.PrepareContext(ctx, sqlMarkDelete)
+	if err != nil {
+		return fmt.Errorf("DeleteURLs, prepare stmt: %w", err)
+	}
+	for _, id := range ids {
+		if _, err = stmt.ExecContext(ctx, id, userID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("on url: %w", err)
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("DeleteURLs: on transaction commit: %w", err)
+	}
+	logging.Log.Infow("sucsess")
+	return nil
 }

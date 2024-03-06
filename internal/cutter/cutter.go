@@ -8,9 +8,12 @@ import (
 	"fmt"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+const batchSize = 100
 
 type Store interface {
 	GetShortURL(ctx context.Context, key string) (string, error)
@@ -19,6 +22,8 @@ type Store interface {
 	Ping(context.Context) error
 	CloseDB() error
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
+	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
+	DeleteURLs(ctx context.Context, userID string, ids []string) error
 }
 
 type App struct {
@@ -106,4 +111,41 @@ func randStringBytes(n int) (string, error) {
 		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	res, err := a.storage.GetUserURLs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cutter: %w", err)
+	}
+	return res, nil
+}
+
+func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
+	ctx, cancel := context.WithCancel(context.Background())
+	bs := batchSize
+	lenIds := len(ids)
+	if lenIds < batchSize {
+		bs = lenIds
+	}
+	batchCh := make(chan []string)
+	go func(ctx context.Context, bCh chan []string) {
+		for b := range bCh {
+			err := a.storage.DeleteURLs(ctx, userID, b)
+			if err != nil {
+				logging.Log.Error(fmt.Errorf("DeleteURLs: %w", err))
+				cancel()
+			}
+		}
+	}(ctx, batchCh)
+
+	for i := 0; i < lenIds; i = i + min(bs, lenIds-i) {
+		j := i + min(bs, lenIds-i)
+		select {
+		case <-ctx.Done():
+			return
+		case batchCh <- ids[i:j]:
+		}
+	}
+	close(batchCh)
 }

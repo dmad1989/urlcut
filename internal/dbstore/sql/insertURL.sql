@@ -1,6 +1,2 @@
-insert
-	into
-	public.urls (short_url,
-	original_url)
-values( $1,
-$2)
+INSERT INTO PUBLIC.URLS (SHORT_URL, ORIGINAL_URL,  "authorId")
+VALUES($1, $2, $3)

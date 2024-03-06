@@ -1,5 +1,5 @@
 select
-	u.original_url
+	u.original_url, u.deletedflag
 from
 	urls u
 where
