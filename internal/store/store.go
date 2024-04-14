@@ -19,11 +19,6 @@ type conf interface {
 	GetDBConnName() string
 }
 
-type db interface {
-	Ping(context.Context) error
-	CloseDB() error
-}
-
 type storage struct {
 	rw        sync.RWMutex
 	urlMap    map[string]string
@@ -218,4 +213,11 @@ func createIfNeeded(path string, fileName string) error {
 	}
 
 	return err
+}
+func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	return nil, nil
+}
+
+func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
+	return errors.New("unsupported store method")
 }

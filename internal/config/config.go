@@ -15,6 +15,13 @@ const (
 	// defDBDSN=
 )
 
+var UserCtxKey = &ContextKey{"userId"}
+var ErrorCtxKey = &ContextKey{"error"}
+
+type ContextKey struct {
+	name string
+}
+
 var conf = Config{
 	url: defHost,
 }
