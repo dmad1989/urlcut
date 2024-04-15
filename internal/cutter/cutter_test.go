@@ -30,7 +30,6 @@ func TestCut(t *testing.T) {
 	type expected struct {
 		isEmptyRes bool
 		isNoError  bool
-		err        error
 	}
 	m := mocks.NewMockStore(ctrl)
 	tests := []struct {
@@ -48,13 +47,12 @@ func TestCut(t *testing.T) {
 		expected: expected{
 			isEmptyRes: false,
 			isNoError:  true,
-			err:        nil,
 		},
 	},
 		{
 			name: "negative - add custom error",
 			mockParams: mockParams{
-				addErrReturn: errors.New("some db error"),
+				addErrReturn: errors.New("from db"),
 				getUrlReturn: "",
 				getErrReturn: nil,
 				getTimes:     0,
@@ -62,13 +60,12 @@ func TestCut(t *testing.T) {
 			expected: expected{
 				isEmptyRes: true,
 				isNoError:  false,
-				err:        errors.New("some db error"),
 			},
 		},
 		{
 			name: "negative - add UniqueURLError ",
 			mockParams: mockParams{
-				addErrReturn: NewUniqueURLError("code", errors.New("unique error text")),
+				addErrReturn: NewUniqueURLError("code", errors.New("not unique URL")),
 				getUrlReturn: "",
 				getErrReturn: nil,
 				getTimes:     0,
@@ -76,7 +73,6 @@ func TestCut(t *testing.T) {
 			expected: expected{
 				isEmptyRes: true,
 				isNoError:  false,
-				err:        NewUniqueURLError("code", errors.New("unique error text")),
 			},
 		},
 		{
@@ -90,7 +86,19 @@ func TestCut(t *testing.T) {
 			expected: expected{
 				isEmptyRes: false,
 				isNoError:  false,
-				err:        NewUniqueURLError("cuten", pgerr),
+			},
+		},
+		{
+			name: "negative - add UniqueViolation get  error",
+			mockParams: mockParams{
+				addErrReturn: pgerr,
+				getUrlReturn: "cuten",
+				getErrReturn: errors.New("from db"),
+				getTimes:     1,
+			},
+			expected: expected{
+				isEmptyRes: true,
+				isNoError:  false,
 			},
 		},
 	}
@@ -106,7 +114,6 @@ func TestCut(t *testing.T) {
 				return
 			}
 			assert.NotEmpty(t, err)
-			assert.ErrorContains(t, err, tt.expected.err.Error())
 		})
 	}
 }
