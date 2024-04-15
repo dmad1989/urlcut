@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type app interface {
+type App interface {
 	Cut(cxt context.Context, url string) (generated string, err error)
 	GetKeyByValue(cxt context.Context, value string) (res string, err error)
 	PingDB(context.Context) error
@@ -29,18 +29,18 @@ type app interface {
 	DeleteUrls(userID string, ids jsonobject.ShortIds)
 }
 
-type conf interface {
+type Conf interface {
 	GetURL() string
 	GetShortAddress() string
 }
 
 type server struct {
-	cutterApp app
-	config    conf
+	cutterApp App
+	config    Conf
 	mux       *chi.Mux
 }
 
-func New(cutApp app, config conf) *server {
+func New(cutApp App, config Conf) *server {
 	api := &server{cutterApp: cutApp, config: config, mux: chi.NewMux()}
 	api.initHandlers()
 	return api
