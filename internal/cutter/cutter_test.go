@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/jackc/pgerrcode"
@@ -178,4 +179,74 @@ func TestCheckUrls(t *testing.T) {
 	}
 	time.Sleep(time.Second * 30)
 	defer goleak.VerifyNone(t)
+}
+
+func BenchmarkGetKeyByValue(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	m := mocks.NewMockStore(ctrl)
+	a := New(m)
+	m.EXPECT().GetOriginalURL(gomock.Any(), "someString").Return("returnString", nil).AnyTimes()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		a.GetKeyByValue(context.TODO(), "someString")
+	}
+}
+
+func BenchmarkUploadBatch(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	m := mocks.NewMockStore(ctrl)
+	a := New(m)
+	batch := make(jsonobject.Batch, 200)
+	for i := 0; i < 200; i++ {
+		str, err := randStringBytes(i)
+		if err != nil {
+			panic("randStringBytes out of control")
+		}
+		batch = append(batch, jsonobject.BatchItem{ID: str, OriginalURL: str})
+	}
+	m.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(batch, nil).AnyTimes()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		a.UploadBatch(context.TODO(), batch)
+	}
+}
+
+func BenchmarkDeleteUrls(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	m := mocks.NewMockStore(ctrl)
+	a := New(m)
+	m.EXPECT().DeleteURLs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	ids := make(jsonobject.ShortIds, 200)
+	for i := 0; i < 200; i++ {
+		str, err := randStringBytes(i)
+		if err != nil {
+			panic("randStringBytes out of control")
+		}
+		ids = append(ids, str)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		a.DeleteUrls("customID", ids)
+	}
+}
+
+func BenchmarkCut(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	m := mocks.NewMockStore(ctrl)
+	a := New(m)
+	m.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	m.EXPECT().GetShortURL(gomock.Any(), gomock.Any()).Return("url", nil).AnyTimes()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		a.Cut(context.TODO(), "someurl")
+	}
 }
