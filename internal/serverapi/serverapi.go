@@ -11,12 +11,15 @@ import (
 	"net/url"
 	"strings"
 
+	_ "net/http/pprof"
+
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/dbstore"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -48,6 +51,7 @@ func New(cutApp App, config Conf) *server {
 
 func (s server) initHandlers() {
 	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
+	s.mux.Mount("/debug", middleware.Profiler())
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
 	s.mux.Get("/ping", s.pingHandler)
