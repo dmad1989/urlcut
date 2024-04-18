@@ -3,7 +3,7 @@ package cutter
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	_ "net/http/pprof"
@@ -111,7 +111,9 @@ func randStringBytes(n int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	str := hex.EncodeToString(b)
+	return str[:n], nil
+	// return base64.URLEncoding.EncodeToString(b), nil
 }
 
 func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
