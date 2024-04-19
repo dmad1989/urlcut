@@ -14,7 +14,7 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 )
 
-type conf interface {
+type configer interface {
 	GetFileStoreName() string
 	GetDBConnName() string
 }
@@ -26,7 +26,7 @@ type storage struct {
 	fileName  string
 }
 
-func New(ctx context.Context, c conf) (*storage, error) {
+func New(ctx context.Context, c configer) (*storage, error) {
 	fn := ""
 	fp := ""
 	if c.GetFileStoreName() != "" {
@@ -134,6 +134,14 @@ func (s *storage) readFromFile() error {
 	return nil
 }
 
+func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	return nil, nil
+}
+
+func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
+	return errors.New("unsupported store method")
+}
+
 type Consumer struct {
 	file    *os.File
 	scanner *bufio.Scanner
@@ -213,11 +221,4 @@ func createIfNeeded(path string, fileName string) error {
 	}
 
 	return err
-}
-func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
-	return nil, nil
-}
-
-func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
-	return errors.New("unsupported store method")
 }

@@ -23,6 +23,23 @@ type (
 	}
 )
 
+func (r *loggingResponseWriter) Write(b []byte) (int, error) {
+	size, err := r.ResponseWriter.Write(b)
+	r.responseData.size += size
+	if !r.wroteHeader {
+		r.responseData.status = http.StatusOK
+	}
+	return size, err
+}
+
+func (r *loggingResponseWriter) WriteHeader(statusCode int) {
+	if !r.wroteHeader {
+		r.wroteHeader = true
+		r.ResponseWriter.WriteHeader(statusCode)
+		r.responseData.status = statusCode
+	}
+}
+
 func Initilize() error {
 	zl, err := zap.NewProduction()
 	if err != nil {
@@ -58,21 +75,4 @@ func WithLog(h http.Handler) http.Handler {
 		)
 	}
 	return http.HandlerFunc(logFn)
-}
-
-func (r *loggingResponseWriter) Write(b []byte) (int, error) {
-	size, err := r.ResponseWriter.Write(b)
-	r.responseData.size += size
-	if !r.wroteHeader {
-		r.responseData.status = http.StatusOK
-	}
-	return size, err
-}
-
-func (r *loggingResponseWriter) WriteHeader(statusCode int) {
-	if !r.wroteHeader {
-		r.wroteHeader = true
-		r.ResponseWriter.WriteHeader(statusCode)
-		r.responseData.status = statusCode
-	}
 }

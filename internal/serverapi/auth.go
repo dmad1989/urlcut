@@ -23,39 +23,10 @@ var (
 	ErrorInvalidToken = errors.New("auth token not valid")
 )
 
-const tokenExp = time.Hour * 6
-const secretKey = "gopracticumshoretenersecretkey"
-
-func checkToken(t string) (string, error) {
-	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(t, claims,
-		func(t *jwt.Token) (interface{}, error) {
-			return []byte(secretKey), nil
-		})
-	if err != nil || !token.Valid {
-		return "", ErrorInvalidToken
-	}
-	if claims.UserID == "" {
-		return "", ErrorNoUser
-	}
-	return claims.UserID, nil
-}
-
-func generateToken(userID string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
-		},
-		UserID: userID,
-	})
-
-	tokenString, err := token.SignedString([]byte(secretKey))
-	if err != nil {
-		return "", fmt.Errorf("generateToken: %w", err)
-	}
-
-	return tokenString, nil
-}
+const (
+	tokenExp  = time.Hour * 6
+	secretKey = "gopracticumshoretenersecretkey"
+)
 
 func (s server) Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +65,37 @@ func (s server) Auth(h http.Handler) http.Handler {
 		ctx = context.WithValue(ctx, config.ErrorCtxKey, err)
 		h.ServeHTTP(nextW, r.WithContext(ctx))
 	})
+}
+
+func checkToken(t string) (string, error) {
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(t, claims,
+		func(t *jwt.Token) (interface{}, error) {
+			return []byte(secretKey), nil
+		})
+	if err != nil || !token.Valid {
+		return "", ErrorInvalidToken
+	}
+	if claims.UserID == "" {
+		return "", ErrorNoUser
+	}
+	return claims.UserID, nil
+}
+
+func generateToken(userID string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
+		},
+		UserID: userID,
+	})
+
+	tokenString, err := token.SignedString([]byte(secretKey))
+	if err != nil {
+		return "", fmt.Errorf("generateToken: %w", err)
+	}
+
+	return tokenString, nil
 }
 
 func createUserID() string {

@@ -24,7 +24,7 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 )
 
-type App interface {
+type ICutter interface {
 	Cut(cxt context.Context, url string) (generated string, err error)
 	GetKeyByValue(cxt context.Context, value string) (res string, err error)
 	PingDB(context.Context) error
@@ -33,33 +33,21 @@ type App interface {
 	DeleteUrls(userID string, ids jsonobject.ShortIds)
 }
 
-type Conf interface {
+type Configer interface {
 	GetURL() string
 	GetShortAddress() string
 }
 
 type server struct {
-	cutterApp App
-	config    Conf
-	mux       *chi.Mux
+	cutter ICutter
+	config Configer
+	mux    *chi.Mux
 }
 
-func New(cutApp App, config Conf) *server {
-	api := &server{cutterApp: cutApp, config: config, mux: chi.NewMux()}
+func New(cutter ICutter, config Configer) *server {
+	api := &server{cutter: cutter, config: config, mux: chi.NewMux()}
 	api.initHandlers()
 	return api
-}
-
-func (s server) initHandlers() {
-	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
-	s.mux.Mount("/debug", middleware.Profiler())
-	s.mux.Post("/", s.cutterHandler)
-	s.mux.Get("/{path}", s.redirectHandler)
-	s.mux.Get("/ping", s.pingHandler)
-	s.mux.Post("/api/shorten", s.cutterJSONHandler)
-	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
-	s.mux.Get("/api/user/urls", s.userUrlsHandler)
-	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
 }
 
 func (s server) Run(ctx context.Context) error {
@@ -91,6 +79,18 @@ func (s server) Run(ctx context.Context) error {
 	return nil
 }
 
+func (s server) initHandlers() {
+	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
+	s.mux.Mount("/debug", middleware.Profiler())
+	s.mux.Post("/", s.cutterHandler)
+	s.mux.Get("/{path}", s.redirectHandler)
+	s.mux.Get("/ping", s.pingHandler)
+	s.mux.Post("/api/shorten", s.cutterJSONHandler)
+	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
+	s.mux.Get("/api/user/urls", s.userUrlsHandler)
+	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
+}
+
 func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 	var reqJSON jsonobject.Request
 	if req.Header.Get("Content-Type") != "application/json" {
@@ -106,7 +106,7 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 		responseError(res, fmt.Errorf("cutterJsonHandler: decoding request: %w", err))
 		return
 	}
-	code, err := s.cutterApp.Cut(req.Context(), reqJSON.URL)
+	code, err := s.cutter.Cut(req.Context(), reqJSON.URL)
 	status := http.StatusCreated
 	if err != nil {
 		var uerr *cutter.UniqueURLError
@@ -149,7 +149,7 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	code, err := s.cutterApp.Cut(req.Context(), string(body))
+	code, err := s.cutter.Cut(req.Context(), string(body))
 	status := http.StatusCreated
 	if err != nil {
 		var uerr *cutter.UniqueURLError
@@ -172,7 +172,7 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	redirectURL, err := s.cutterApp.GetKeyByValue(req.Context(), path)
+	redirectURL, err := s.cutter.GetKeyByValue(req.Context(), path)
 	if err != nil {
 		if errors.Is(err, dbstore.ErrorDeletedURL) {
 			res.WriteHeader(http.StatusGone)
@@ -185,36 +185,8 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	http.Redirect(res, req, redirectURL, http.StatusTemporaryRedirect)
 }
 
-func responseError(res http.ResponseWriter, err error) {
-	res.WriteHeader(http.StatusBadRequest)
-	res.Write([]byte(err.Error()))
-}
-
-func gzipMiddleware(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nextW := w
-		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			cr, err := newCompressReader(r.Body)
-			if err != nil {
-				responseError(w, fmt.Errorf("gzip: read compressed body: %w", err))
-				return
-			}
-			r.Body = cr
-			defer cr.Close()
-		}
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			w.Header()
-			cw := newCompressWriter(w)
-			nextW = cw
-			defer cw.Close()
-		}
-
-		h.ServeHTTP(nextW, r)
-	})
-}
-
 func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
-	err := s.cutterApp.PingDB(req.Context())
+	err := s.cutter.PingDB(req.Context())
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(fmt.Errorf("pingHandler : %w", err).Error()))
@@ -240,7 +212,7 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 		return
 	}
 	logging.Log.Info(batchRequest)
-	batchResponse, err := s.cutterApp.UploadBatch(req.Context(), batchRequest)
+	batchResponse, err := s.cutter.UploadBatch(req.Context(), batchRequest)
 
 	if err != nil {
 		responseError(res, fmt.Errorf("JSONBatchHandler: getting code for url: %w", err))
@@ -268,7 +240,7 @@ func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	urls, err := s.cutterApp.GetUserURLs(req.Context())
+	urls, err := s.cutter.GetUserURLs(req.Context())
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			res.WriteHeader(http.StatusNoContent)
@@ -328,6 +300,34 @@ func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 		responseError(res, errors.New("CheckIsUserURL, wrong user type in context"))
 		return
 	}
-	go s.cutterApp.DeleteUrls(userID, ids)
+	go s.cutter.DeleteUrls(userID, ids)
 	res.WriteHeader(http.StatusAccepted)
+}
+
+func responseError(res http.ResponseWriter, err error) {
+	res.WriteHeader(http.StatusBadRequest)
+	res.Write([]byte(err.Error()))
+}
+
+func gzipMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextW := w
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			cr, err := newCompressReader(r.Body)
+			if err != nil {
+				responseError(w, fmt.Errorf("gzip: read compressed body: %w", err))
+				return
+			}
+			r.Body = cr
+			defer cr.Close()
+		}
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header()
+			cw := newCompressWriter(w)
+			nextW = cw
+			defer cw.Close()
+		}
+
+		h.ServeHTTP(nextW, r)
+	})
 }

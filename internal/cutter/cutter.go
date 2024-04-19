@@ -17,7 +17,7 @@ import (
 
 const batchSize = 100
 
-type Store interface {
+type IStore interface {
 	GetShortURL(ctx context.Context, key string) (string, error)
 	Add(ctx context.Context, original, short string) error
 	GetOriginalURL(ctx context.Context, value string) (res string, err error)
@@ -29,29 +29,11 @@ type Store interface {
 }
 
 type App struct {
-	storage Store
+	storage IStore
 }
 
-func New(s Store) *App {
+func New(s IStore) *App {
 	return &App{storage: s}
-}
-
-type UniqueURLError struct {
-	Code string
-	Err  error
-}
-
-func (ue *UniqueURLError) Error() string {
-	return fmt.Sprintf("URL is not unique. Saved Code is: %s; %v", ue.Code, ue.Err)
-}
-func NewUniqueURLError(code string, err error) error {
-	return &UniqueURLError{
-		Code: code,
-		Err:  err,
-	}
-}
-func (ue *UniqueURLError) Unwrap() error {
-	return ue.Err
 }
 
 func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
@@ -106,17 +88,6 @@ func (a *App) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobje
 	return batch, nil
 }
 
-func randStringBytes(n int) (string, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
-	}
-	str := hex.EncodeToString(b)
-	return str[:n], nil
-	// return base64.URLEncoding.EncodeToString(b), nil
-}
-
 func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	res, err := a.storage.GetUserURLs(ctx)
 	if err != nil {
@@ -152,4 +123,33 @@ func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 		}
 	}
 	close(batchCh)
+}
+
+type UniqueURLError struct {
+	Code string
+	Err  error
+}
+
+func (ue *UniqueURLError) Error() string {
+	return fmt.Sprintf("URL is not unique. Saved Code is: %s; %v", ue.Code, ue.Err)
+}
+func NewUniqueURLError(code string, err error) error {
+	return &UniqueURLError{
+		Code: code,
+		Err:  err,
+	}
+}
+func (ue *UniqueURLError) Unwrap() error {
+	return ue.Err
+}
+
+func randStringBytes(n int) (string, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
+	}
+	str := hex.EncodeToString(b)
+	return str[:n], nil
+	// return base64.URLEncoding.EncodeToString(b), nil
 }

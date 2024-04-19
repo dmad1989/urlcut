@@ -41,7 +41,7 @@ func main() {
 	}
 }
 
-func initStore(ctx context.Context, conf config.Config) (storage cutter.Store, err error) {
+func initStore(ctx context.Context, conf config.Config) (storage cutter.IStore, err error) {
 	if conf.GetDBConnName() != "" {
 		storage, err = dbstore.New(ctx, conf)
 		if err != nil {

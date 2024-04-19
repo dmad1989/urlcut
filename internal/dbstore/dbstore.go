@@ -19,28 +19,24 @@ import (
 
 const timeout = time.Duration(time.Second * 10)
 
-//go:embed sql/migrations/00001_create_urls_table.sql
-var embedMigrations embed.FS
+var (
+	//go:embed sql/migrations/00001_create_urls_table.sql
+	embedMigrations embed.FS
+	//go:embed sql/checkTableExists.sql
+	sqlCheckTableExists string
+	//go:embed sql/getShortURL.sql
+	sqlGetShortURL string
+	//go:embed sql/getOriginalURL.sql
+	sqlGetOriginalURL string
+	//go:embed sql/insertURL.sql
+	sqlInsert string
+	//go:embed sql/getUrlsByAuthor.sql
+	sqlGetUrlsByAuthor string
+	//go:embed sql/markDelete.sql
+	sqlMarkDelete string
+)
 
-//go:embed sql/checkTableExists.sql
-var sqlCheckTableExists string
-
-//go:embed sql/getShortURL.sql
-var sqlGetShortURL string
-
-//go:embed sql/getOriginalURL.sql
-var sqlGetOriginalURL string
-
-//go:embed sql/insertURL.sql
-var sqlInsert string
-
-//go:embed sql/getUrlsByAuthor.sql
-var sqlGetUrlsByAuthor string
-
-//go:embed sql/markDelete.sql
-var sqlMarkDelete string
-
-type conf interface {
+type configer interface {
 	GetFileStoreName() string
 	GetDBConnName() string
 }
@@ -49,7 +45,7 @@ type storage struct {
 	db *sql.DB
 }
 
-func New(ctx context.Context, c conf) (*storage, error) {
+func New(ctx context.Context, c configer) (*storage, error) {
 	if c.GetDBConnName() == "" {
 		return nil, errors.New("init db storage: conn name is empty")
 	}
