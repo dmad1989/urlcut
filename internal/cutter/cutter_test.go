@@ -24,7 +24,7 @@ func TestCut(t *testing.T) {
 	}
 	type mockParams struct {
 		addErrReturn error
-		getUrlReturn string
+		getURLReturn string
 		getErrReturn error
 		getTimes     int
 	}
@@ -41,7 +41,7 @@ func TestCut(t *testing.T) {
 		name: "positive",
 		mockParams: mockParams{
 			addErrReturn: nil,
-			getUrlReturn: "sss",
+			getURLReturn: "sss",
 			getErrReturn: nil,
 			getTimes:     0,
 		},
@@ -54,7 +54,7 @@ func TestCut(t *testing.T) {
 			name: "negative - add custom error",
 			mockParams: mockParams{
 				addErrReturn: errors.New("from db"),
-				getUrlReturn: "",
+				getURLReturn: "",
 				getErrReturn: nil,
 				getTimes:     0,
 			},
@@ -67,7 +67,7 @@ func TestCut(t *testing.T) {
 			name: "negative - add UniqueURLError ",
 			mockParams: mockParams{
 				addErrReturn: NewUniqueURLError("code", errors.New("not unique URL")),
-				getUrlReturn: "",
+				getURLReturn: "",
 				getErrReturn: nil,
 				getTimes:     0,
 			},
@@ -80,7 +80,7 @@ func TestCut(t *testing.T) {
 			name: "negative - add UniqueViolation get no error",
 			mockParams: mockParams{
 				addErrReturn: pgerr,
-				getUrlReturn: "cuten",
+				getURLReturn: "cuten",
 				getErrReturn: nil,
 				getTimes:     1,
 			},
@@ -93,7 +93,7 @@ func TestCut(t *testing.T) {
 			name: "negative - add UniqueViolation get  error",
 			mockParams: mockParams{
 				addErrReturn: pgerr,
-				getUrlReturn: "cuten",
+				getURLReturn: "cuten",
 				getErrReturn: errors.New("from db"),
 				getTimes:     1,
 			},
@@ -106,7 +106,7 @@ func TestCut(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).Return(tt.mockParams.addErrReturn).MaxTimes(1)
-			m.EXPECT().GetShortURL(gomock.Any(), gomock.Any()).Return(tt.mockParams.getUrlReturn, tt.mockParams.getErrReturn).MaxTimes(tt.mockParams.getTimes)
+			m.EXPECT().GetShortURL(gomock.Any(), gomock.Any()).Return(tt.mockParams.getURLReturn, tt.mockParams.getErrReturn).MaxTimes(tt.mockParams.getTimes)
 			app := New(m)
 			res, err := app.Cut(context.TODO(), "someurl")
 			assert.Equal(t, tt.expected.isEmptyRes, res == "")
