@@ -4,8 +4,9 @@ import (
 	"flag"
 	"os"
 
-	"github.com/dmad1989/urlcut/internal/logging"
 	"go.uber.org/zap"
+
+	"github.com/dmad1989/urlcut/internal/logging"
 )
 
 const (

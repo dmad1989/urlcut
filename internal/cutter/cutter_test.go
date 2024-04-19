@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmad1989/urlcut/internal/jsonobject"
-	"github.com/dmad1989/urlcut/internal/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
+
+	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/mocks"
 )
 
 func TestCut(t *testing.T) {

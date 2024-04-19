@@ -8,8 +8,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	jsonobject "github.com/dmad1989/urlcut/internal/jsonobject"
 	gomock "github.com/golang/mock/gomock"
+
+	jsonobject "github.com/dmad1989/urlcut/internal/jsonobject"
 )
 
 // MockApp is a mock of App interface.

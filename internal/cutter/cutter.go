@@ -8,10 +8,11 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 
-	"github.com/dmad1989/urlcut/internal/jsonobject"
-	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/logging"
 )
 
 const batchSize = 100

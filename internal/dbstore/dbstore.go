@@ -10,10 +10,11 @@ import (
 
 	"github.com/pressly/goose/v3"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const timeout = time.Duration(time.Second * 10)
