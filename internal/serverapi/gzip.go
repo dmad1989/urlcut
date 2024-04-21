@@ -2,8 +2,10 @@ package serverapi
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type compressWriter struct {
@@ -61,4 +63,27 @@ func (c *compressReader) Close() error {
 		return err
 	}
 	return c.zr.Close()
+}
+
+func gzipMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextW := w
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			cr, err := newCompressReader(r.Body)
+			if err != nil {
+				responseError(w, fmt.Errorf("gzip: read compressed body: %w", err))
+				return
+			}
+			r.Body = cr
+			defer cr.Close()
+		}
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header()
+			cw := newCompressWriter(w)
+			nextW = cw
+			defer cw.Close()
+		}
+
+		h.ServeHTTP(nextW, r)
+	})
 }

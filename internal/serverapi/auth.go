@@ -13,14 +13,16 @@ import (
 	"github.com/dmad1989/urlcut/internal/config"
 )
 
+// Claims хранит в себе данные токена
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID string
 }
 
+// Ошибки авторизации
 var (
-	ErrorNoUser       = errors.New("no userid in auth token")
-	ErrorInvalidToken = errors.New("auth token not valid")
+	ErrorNoUser       = errors.New("no userid in auth token") // в токене нет userId
+	ErrorInvalidToken = errors.New("auth token not valid")    // токен не прошел валидацию
 )
 
 const (
@@ -28,6 +30,10 @@ const (
 	secretKey = "gopracticumshoretenersecretkey"
 )
 
+// Auth это middleware для регистрации и авторизации пользователей.
+// Проверяет наличие и валидность токена в cookie "token".
+// Если cookie нет - регистрируем нового пользователя: генерируем новый ID, токен и записываем в cookie.
+// Полученный из токена или сгенерированный userid записываем в контекст вызова.
 func (s server) Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextW := w
@@ -67,6 +73,7 @@ func (s server) Auth(h http.Handler) http.Handler {
 	})
 }
 
+// checkToken проверяет токен на валидность.
 func checkToken(t string) (string, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(t, claims,
@@ -82,6 +89,7 @@ func checkToken(t string) (string, error) {
 	return claims.UserID, nil
 }
 
+// generateToken генерирует HS256 - токен по userID.
 func generateToken(userID string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{

@@ -1,3 +1,6 @@
+// Модуль config инициализирует конфигурацию при запуске сервера.
+// Данные инициализируются согласно следующего приоритета:
+// из переменной окружения, если ее нет - из флага, указанного при запуске, если его нет - значение по умолчанию.
 package config
 
 import (
@@ -9,15 +12,17 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 )
 
+// Значения по умолчанию.
 const (
 	defHost      = "localhost:8080"
 	defShortHost = "http://localhost:8080"
-	// defFileStorageDB = "/tmp/short-url-db.json"
-	// defDBDSN=
 )
 
-var UserCtxKey = &ContextKey{"userId"}
-var ErrorCtxKey = &ContextKey{"error"}
+// Ключи для данных передающихся в контексте.
+var (
+	UserCtxKey  = &ContextKey{"userId"} // ID пользователя
+	ErrorCtxKey = &ContextKey{"error"}  // ошибка
+)
 
 type ContextKey struct {
 	name string
@@ -27,13 +32,19 @@ var conf = Config{
 	url: defHost,
 }
 
+// Config хранит параметры для запуска сервера.
 type Config struct {
-	url           string
-	shortAddress  string
+	// url - адрес по которому будет доступен сервер.
+	url string
+	// shortAddress - адрес, который будет в сокращении.
+	shortAddress string
+	// fileStoreName - имя json - файла, для хранения сокращенных URL.
 	fileStoreName string
-	dbConnName    string
+	//dbConnName - DSN к PostgresSQL
+	dbConnName string
 }
 
+// Инициализация конфигурации значениями флага или по умолчанию.
 func init() {
 	flag.StringVar(&conf.url, "a", defHost, "server URL format host:port, :port")
 	flag.StringVar(&conf.shortAddress, "b", defShortHost, "Address for short url")
@@ -41,6 +52,7 @@ func init() {
 	flag.StringVar(&conf.dbConnName, "d", "", "database connection addres, format host=? port=? user=? password=? dbname=? sslmode=?")
 }
 
+// ParseConfig - запускает парсинг флагов и анализирует переменные окружения.
 func ParseConfig() Config {
 	flag.Parse()
 	if os.Getenv("SERVER_ADDRESS") != "" {
@@ -67,18 +79,22 @@ func ParseConfig() Config {
 	return conf
 }
 
+// GetURL - получить адрес по которому будет запущен сервер.
 func (c Config) GetURL() string {
 	return c.url
 }
 
+// GetShortAddress - получить адрес, который будет в ответе с сокращением.
 func (c Config) GetShortAddress() string {
 	return c.shortAddress
 }
 
+// GetFileStoreName - получить путь к файлу с сокращениями
 func (c Config) GetFileStoreName() string {
 	return c.fileStoreName
 }
 
+// GetDBConnName - получить DSN к DB
 func (c Config) GetDBConnName() string {
 	return c.dbConnName
 }

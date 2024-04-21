@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 
 	_ "net/http/pprof"
 
@@ -24,6 +23,29 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 )
 
+// @Title URLCutter API
+// @Description Сервис сокращения ссылок.
+// @Version 1.0
+
+// @Contact.email dmad1989@gmail.com
+
+// @SecurityDefinitions.token tokenAuth
+// @In cookie
+// @Name token
+
+// @Tag.name Cut
+// @Tag.description "Группа запросов для сокращения URL"
+
+// @Tag.name UserURLs
+// @Tag.description "Группа запросов для работы с URL пользователя"
+
+// @Tag.name Operate
+// @Tag.description "Группа запросов для работы с сокращенными URL"
+
+// @Tag.name Info
+// @Tag.description "Группа запросов состояния сервиса"
+
+// ICutter интерфейс слоя с бизнес логикой
 type ICutter interface {
 	Cut(cxt context.Context, url string) (generated string, err error)
 	GetKeyByValue(cxt context.Context, value string) (res string, err error)
@@ -33,6 +55,7 @@ type ICutter interface {
 	DeleteUrls(userID string, ids jsonobject.ShortIds)
 }
 
+// Configer интерйфейс конфигураци
 type Configer interface {
 	GetURL() string
 	GetShortAddress() string
@@ -50,6 +73,9 @@ func New(cutter ICutter, config Configer) *server {
 	return api
 }
 
+// Run запускает сервер в отдельной горутине.
+// В другой горутине ожидает сигнала от контекста о завершении, чтобы отключить сервер.
+// Пишет ошибку в консоль, о причине выключения.
 func (s server) Run(ctx context.Context) error {
 	defer logging.Log.Sync()
 	logging.Log.Infof("Server started at %s", s.config.GetURL())
@@ -91,6 +117,16 @@ func (s server) initHandlers() {
 	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
 }
 
+// cutterJSONHandler godoc
+// @Tags Cut
+// @Summary Запрос на сокращение URL
+// @ID cutterJSON
+// @Accept  json
+// @Produce json
+// @Success 201 {object} jsonobject.Response
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 400 {string} string "Ошибка"
+// @Router /api/shorten [post]
 func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 	var reqJSON jsonobject.Request
 	if req.Header.Get("Content-Type") != "application/json" {
@@ -131,6 +167,16 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 	res.Write(respb)
 }
 
+// cutterHandler godoc
+// @Tags Cut
+// @Summary Запрос на сокращение URL
+// @ID cutterText
+// @Accept  plain/text
+// @Produce plain/text
+// @Success 201 {string} string "Сокращенный URL"
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 400 {string} string "Ошибка"
+// @Router / [post]
 func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -165,6 +211,16 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte(fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code)))
 }
 
+// redirectHandler godoc
+// @Tags Operate
+// @Summary Переход по сокращеному URL
+// @ID redirect
+// @Accept  plain/text
+// @Param path path string true "Сокращенный url"
+// @Success 307 "Переход по сокращенному URL"
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 400 {string} string "Ошибка"
+// @Router /{path} [get]
 func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	path := chi.URLParam(req, "path")
 	if path == "" {
@@ -185,6 +241,16 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	http.Redirect(res, req, redirectURL, http.StatusTemporaryRedirect)
 }
 
+// pingHandler godoc
+// @Tags Info
+// @Summary Проверка соединения с БД
+// @ID ping
+// @Accept  */*
+// @Produce plain/text
+// @Success 200 {string} string
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 500 {string} string "Ошибка"
+// @Router /ping [get]
 func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
 	err := s.cutter.PingDB(req.Context())
 	if err != nil {
@@ -195,6 +261,16 @@ func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
 }
 
+// cutterJSONBatchHandler godoc
+// @Tags Cut
+// @Summary Запрос на сокращение списка URL
+// @ID cutterBatch
+// @Accept  json
+// @Produce json
+// @Success 201 {object} jsonobject.Batch
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 400 {string} string "Ошибка"
+// @Router /api/shorten/batch [post]
 func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Request) {
 	var batchRequest jsonobject.Batch
 	if req.Header.Get("Content-Type") != "application/json" {
@@ -233,6 +309,16 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 	res.Write(respb)
 }
 
+// userUrlsHandler godoc
+// @Tags UserURLs
+// @Summary Все скоращенные URL текущего пользователя
+// @ID userURLs
+// @Produce plain/text
+// @Success 200 {object} jsonobject.Batch
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 204 {string} string "Нет сокращенных URL"
+// @Failure 400 {string} string "Ошибка"
+// @Router /api/user/urls [get]
 func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 	err, _ := req.Context().Value(config.ErrorCtxKey).(error)
 	if err != nil {
@@ -268,6 +354,15 @@ func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 	res.Write(respb)
 }
 
+// deleteUserUrlsHandler godoc
+// @Tags UserURLs
+// @Summary Запрос на удаление сокращеных URL
+// @ID deleteUserUrls
+// @Accept  json
+// @Produce plain/text
+// @Success 202 {object} jsonobject.ShortIds
+// @Failure 400 {string} string "Ошибка"
+// @Router / [post]
 func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request) {
 	err, _ := req.Context().Value(config.ErrorCtxKey).(error)
 	if err != nil {
@@ -307,27 +402,4 @@ func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 func responseError(res http.ResponseWriter, err error) {
 	res.WriteHeader(http.StatusBadRequest)
 	res.Write([]byte(err.Error()))
-}
-
-func gzipMiddleware(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nextW := w
-		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			cr, err := newCompressReader(r.Body)
-			if err != nil {
-				responseError(w, fmt.Errorf("gzip: read compressed body: %w", err))
-				return
-			}
-			r.Body = cr
-			defer cr.Close()
-		}
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			w.Header()
-			cw := newCompressWriter(w)
-			nextW = cw
-			defer cw.Close()
-		}
-
-		h.ServeHTTP(nextW, r)
-	})
 }

@@ -7,25 +7,35 @@ type Item struct {
 	OriginalURL string `json:"original_url"`
 }
 
+// Batch содержит список из URL
+//
 //easyjson:json
 type Batch []BatchItem
 
 //easyjson:json
 type BatchItem struct {
-	ID          string `json:"correlation_id,omitempty"`
-	OriginalURL string `json:"original_url,omitempty"`
-	ShortURL    string `json:"short_url,omitempty"`
+	ID string `json:"correlation_id,omitempty" example:"1"`
+	// URL для сокращения
+	OriginalURL string `json:"original_url,omitempty" example:"http://ya.ru"`
+	// Сокращенный URL
+	ShortURL string `json:"short_url,omitempty" example:"http://localhost:8080/rjhsha"`
 }
 
+// Request содержит запрос с URL для сокращения
+//
 //easyjson:json
 type Request struct {
-	URL string `json:"url"`
+	URL string `json:"url" example:"http://ya.ru"`
 }
 
+// Response содержит ответ с сокращенным URL
+//
 //easyjson:json
 type Response struct {
-	Result string `json:"result"`
+	Result string `json:"result" example:"http://localhost:8080/rjhsha"`
 }
 
+// ShortIds содержит список из сокращений
+//
 //easyjson:json
 type ShortIds []string
