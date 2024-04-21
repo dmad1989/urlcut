@@ -1,3 +1,4 @@
+// Сutter - это модуль с бизнес логикой сервиса.
 package cutter
 
 import (
@@ -17,6 +18,7 @@ import (
 
 const batchSize = 100
 
+// IStore интерфейс слоя хранилища.
 type IStore interface {
 	GetShortURL(ctx context.Context, key string) (string, error)
 	Add(ctx context.Context, original, short string) error
@@ -36,6 +38,14 @@ func New(s IStore) *App {
 	return &App{storage: s}
 }
 
+// Cut создает и записывает в хранилище сокращение для переданного URL.
+// Количество символов сокращений - 8.
+//
+//	short, err = randStringBytes(8)
+//
+// Для проверки на уникальность URL, вызывается метод storage.Add и анализируется его ошибка.
+// Для хранилища - файла анализируется ошибка UniqueURLError.
+// Для хранилища - БД анализируется  ошибка *pgconn.PgError и ее код.
 func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
 	short, err = randStringBytes(8)
 	if err != nil {
@@ -61,6 +71,7 @@ func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
 	return
 }
 
+// GetKeyByValue выдает по переданному сокращению URL.
 func (a *App) GetKeyByValue(ctx context.Context, value string) (res string, err error) {
 	res, err = a.storage.GetOriginalURL(ctx, value)
 	if err != nil {
@@ -69,10 +80,12 @@ func (a *App) GetKeyByValue(ctx context.Context, value string) (res string, err 
 	return
 }
 
+// PingDB прокси метод для проверки доступности БД.
 func (a *App) PingDB(ctx context.Context) error {
 	return a.storage.Ping(ctx)
 }
 
+// UploadBatch обрабатывает список URL: присваивает каждому сокращение и отправляет на запись.
 func (a *App) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
 	for i := 0; i < len(batch); i++ {
 		short, err := randStringBytes(8)
@@ -83,11 +96,13 @@ func (a *App) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobje
 	}
 	batch, err := a.storage.UploadBatch(ctx, batch)
 	if err != nil {
-		return batch, fmt.Errorf("UploadBact: %w", err)
+		return batch, fmt.Errorf("UploadBacth: %w", err)
 	}
 	return batch, nil
 }
 
+// GetUserURLs получение  всех сокращенных  URL по ID пользователя.
+// ID пользователя передается как переменная контекста.
 func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	res, err := a.storage.GetUserURLs(ctx)
 	if err != nil {
@@ -96,6 +111,9 @@ func (a *App) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	return res, nil
 }
 
+// DeleteUrls разделяет переданные URL на слайс по 100 и удаляет.
+// Метод работает в отдельной горутине.
+// Каждый слайс передается в отдельную горутину через канал, где вызывается процедура удаления.
 func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 	ctx, cancel := context.WithCancel(context.Background())
 	bs := batchSize
@@ -125,6 +143,8 @@ func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 	close(batchCh)
 }
 
+// UniqueURLError ошибка уникальности URL.
+// Используется для отделения данного типа ошибок от других, по требованиям бизнес логики.
 type UniqueURLError struct {
 	Code string
 	Err  error
@@ -143,6 +163,7 @@ func (ue *UniqueURLError) Unwrap() error {
 	return ue.Err
 }
 
+// randStringBytes генерирует рандомную строку длины n.
 func randStringBytes(n int) (string, error) {
 	b := make([]byte, n)
 	_, err := rand.Read(b)

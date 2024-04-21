@@ -1,3 +1,4 @@
+// Модуль store содержит методы для работы с хранилищем - файлом.
 package store
 
 import (
@@ -26,6 +27,7 @@ type storage struct {
 	fileName  string
 }
 
+// New находит или создает файл, инициализирует Map - для хранения.
 func New(ctx context.Context, c configer) (*storage, error) {
 	fn := ""
 	fp := ""
@@ -114,6 +116,16 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 	return batch, nil
 }
 
+func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	return nil, nil
+}
+
+func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
+	return errors.New("unsupported store method")
+}
+
+// readFromFile открывает файл на чтение.
+// содержимое файла загружается в map.
 func (s *storage) readFromFile() error {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
@@ -132,14 +144,6 @@ func (s *storage) readFromFile() error {
 	}
 
 	return nil
-}
-
-func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
-	return nil, nil
-}
-
-func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
-	return errors.New("unsupported store method")
 }
 
 type Consumer struct {
@@ -176,6 +180,7 @@ func (c *Consumer) ReadItems() ([]jsonobject.Item, error) {
 	return items, nil
 }
 
+// writeItem открывает файл на запись и записывает 1 строку информации.
 func writeItem(fname string, i jsonobject.Item) error {
 	data, err := i.MarshalJSON()
 	if err != nil {
@@ -195,6 +200,8 @@ func writeItem(fname string, i jsonobject.Item) error {
 	return nil
 }
 
+// createIfNeeded находит файл с именем fileName по пути path.
+// если файл или путь не найдены - создаст их.
 func createIfNeeded(path string, fileName string) error {
 	defer logging.Log.Sync()
 	err := os.MkdirAll(path, 0750)
