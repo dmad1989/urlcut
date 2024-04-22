@@ -127,6 +127,7 @@ func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 	}
 }
 
+// Add добавляет в БД новую запись: URL, сокращение, автора.
 func (s *storage) Add(ctx context.Context, original, short string) error {
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
