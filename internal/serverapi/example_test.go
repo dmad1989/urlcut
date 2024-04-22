@@ -16,11 +16,10 @@ func ExampleServer_cutterHandler() {
 	if err != nil {
 		fmt.Println(fmt.Errorf("in request: %w", err))
 	}
-	defer res.Body.Close()
 	// 201 - Сокращен успешно
 	// 400 - ошибка
 	fmt.Println(res.Status)
-
+	res.Body.Close()
 	res, err = s.Client().Post(s.URL, "text/plain", strings.NewReader("qwerty12345"))
 	//Обрабатываем ошибку
 	if err != nil {
@@ -29,6 +28,7 @@ func ExampleServer_cutterHandler() {
 	// 201 - Сокращен успешно
 	// 400 - ошибка
 	fmt.Println(res.Status)
+	res.Body.Close()
 
 	// Output:
 	// 201 Created

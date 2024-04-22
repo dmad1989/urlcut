@@ -30,10 +30,12 @@ type IStore interface {
 	DeleteURLs(ctx context.Context, userID string, ids []string) error
 }
 
+// App структура с бизнес-логикой.
 type App struct {
 	storage IStore
 }
 
+// New Создает App
 func New(s IStore) *App {
 	return &App{storage: s}
 }
@@ -71,7 +73,7 @@ func (a *App) Cut(ctx context.Context, url string) (short string, err error) {
 	return
 }
 
-// GetKeyByValue выдает по переданному сокращению URL.
+// GetKeyByValue выдает по переданному сокращению оригинальный URL.
 func (a *App) GetKeyByValue(ctx context.Context, value string) (res string, err error) {
 	res, err = a.storage.GetOriginalURL(ctx, value)
 	if err != nil {
@@ -150,15 +152,20 @@ type UniqueURLError struct {
 	Err  error
 }
 
+// Error реализует интерфейс error для UniqueURLError.
 func (ue *UniqueURLError) Error() string {
 	return fmt.Sprintf("URL is not unique. Saved Code is: %s; %v", ue.Code, ue.Err)
 }
+
+// NewUniqueURLError создает новую ошибку.
 func NewUniqueURLError(code string, err error) error {
 	return &UniqueURLError{
 		Code: code,
 		Err:  err,
 	}
 }
+
+// Unwrap реализует интерфейс error для UniqueURLError.
 func (ue *UniqueURLError) Unwrap() error {
 	return ue.Err
 }

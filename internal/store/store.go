@@ -54,17 +54,24 @@ func New(ctx context.Context, c configer) (*storage, error) {
 	return &res, nil
 }
 
+// Ping не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
 func (s *storage) Ping(ctx context.Context) error {
 	return errors.New("unsupported store method")
 }
 
+// CloseDB не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
 func (s *storage) CloseDB() error {
 	return nil
 }
 
-func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
+// GetShortURL ищет по URL его сокращение.
+func (s *storage) GetShortURL(ctx context.Context, url string) (string, error) {
 	s.rw.RLock()
-	generated, isFound := s.urlMap[key]
+	generated, isFound := s.urlMap[url]
 	s.rw.RUnlock()
 	if !isFound {
 		return "", nil
@@ -72,6 +79,7 @@ func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 	return generated, nil
 }
 
+// Add добавляет в файл пару URL - сокращение.
 func (s *storage) Add(ctx context.Context, original, short string) error {
 	s.rw.Lock()
 	defer s.rw.Unlock()
@@ -90,6 +98,7 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	return nil
 }
 
+// GetOriginalURL находит по переданному сокращению оригинальный URL.
 func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
@@ -100,6 +109,7 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 	return res, nil
 }
 
+// UploadBatch загружает слайс BatchItem в файл.
 func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
 	for i := 0; i < len(batch); i++ {
 		short, err := s.GetShortURL(ctx, batch[i].OriginalURL)
@@ -116,10 +126,16 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 	return batch, nil
 }
 
+// GetUserURLs не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
 func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	return nil, nil
 }
 
+// DeleteURLs не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
 func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
 	return errors.New("unsupported store method")
 }
@@ -146,6 +162,7 @@ func (s *storage) readFromFile() error {
 	return nil
 }
 
+// Consumer открывает файл на чтение и читает из него.
 type Consumer struct {
 	file    *os.File
 	scanner *bufio.Scanner
@@ -163,6 +180,8 @@ func newConsumer(filename string) (*Consumer, error) {
 	}, nil
 }
 
+// ReadItems читает каждую строку в jsonobject.Item.
+// Возвращает слайс jsonobject.Item.
 func (c *Consumer) ReadItems() ([]jsonobject.Item, error) {
 	items := []jsonobject.Item{}
 	for c.scanner.Scan() {

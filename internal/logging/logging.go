@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// Log глобальная перемнная для логирования.
 var Log *zap.SugaredLogger = zap.NewNop().Sugar()
 
 type (
