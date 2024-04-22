@@ -1,3 +1,4 @@
+// Модуль logging инициализирует логирование работы сервиса.
 package logging
 
 import (
@@ -23,6 +24,7 @@ type (
 	}
 )
 
+// Write добавляет в логирование запроса значение размера и статуса.
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	r.responseData.size += size
@@ -32,6 +34,7 @@ func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	return size, err
 }
 
+// WriteHeader добавляет в логирование ответа значение статуса.
 func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	if !r.wroteHeader {
 		r.wroteHeader = true
@@ -40,6 +43,7 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	}
 }
 
+// Initilize создаем общий zap - логгер.
 func Initilize() error {
 	zl, err := zap.NewProduction()
 	if err != nil {
@@ -49,6 +53,8 @@ func Initilize() error {
 	return nil
 }
 
+// WithLog - это middleware, отвечающая за логирование каждого запроса и ответа.
+// Логируется URL, метод, время выполнения, статус ответа и размер.
 func WithLog(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

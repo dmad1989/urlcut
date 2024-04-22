@@ -24,6 +24,7 @@ var (
 	ErrorCtxKey = &ContextKey{"error"}  // ошибка
 )
 
+// ContextKey реализует ключ для значения в контексте.
 type ContextKey struct {
 	name string
 }

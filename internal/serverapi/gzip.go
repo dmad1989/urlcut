@@ -20,19 +20,23 @@ func newCompressWriter(w http.ResponseWriter) *compressWriter {
 	}
 }
 
+// Header реализует writer интерфейс для compressWriter.
 func (c *compressWriter) Header() http.Header {
 	return c.w.Header()
 }
 
+// Write реализует writer интерфейс для compressWriter.
 func (c *compressWriter) Write(p []byte) (int, error) {
 	return c.zw.Write(p)
 }
 
+// Write реализует writer интерфейс для compressWriter.
 func (c *compressWriter) WriteHeader(statusCode int) {
 	c.w.Header().Set("Content-Encoding", "gzip")
 	c.w.WriteHeader(statusCode)
 }
 
+// Write реализует writer интерфейс для compressWriter.
 func (c *compressWriter) Close() error {
 	return c.zw.Close()
 }
@@ -54,10 +58,12 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	}, nil
 }
 
+// Write реализует reader интерфейс для compressReader.
 func (c compressReader) Read(p []byte) (n int, err error) {
 	return c.zr.Read(p)
 }
 
+// Write реализует reader интерфейс для compressReader.
 func (c *compressReader) Close() error {
 	if err := c.r.Close(); err != nil {
 		return err

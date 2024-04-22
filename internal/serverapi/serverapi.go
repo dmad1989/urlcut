@@ -61,12 +61,14 @@ type Configer interface {
 	GetShortAddress() string
 }
 
+// Server содержит интерфейсы для обращения к другим слоям и роутинг.
 type Server struct {
 	cutter ICutter
 	config Configer
 	mux    *chi.Mux
 }
 
+// New создает новый Server и инициализирует Хэндлеры.
 func New(cutter ICutter, config Configer) *Server {
 	api := &Server{cutter: cutter, config: config, mux: chi.NewMux()}
 	api.initHandlers()
