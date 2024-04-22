@@ -47,6 +47,8 @@ type storage struct {
 	db *sql.DB
 }
 
+// New создает storage.
+// Инициализирует связь с БД, проверяет ее доступность, если необходимо создает таблицы.
 func New(ctx context.Context, c configer) (*storage, error) {
 	if c.GetDBConnName() == "" {
 		return nil, errors.New("init db storage: conn name is empty")
@@ -91,6 +93,7 @@ func New(ctx context.Context, c configer) (*storage, error) {
 	return &res, nil
 }
 
+// Ping проверяет коннектшн к БД.
 func (s *storage) Ping(ctx context.Context) error {
 	err := s.db.PingContext(ctx)
 	if err != nil {
@@ -99,6 +102,7 @@ func (s *storage) Ping(ctx context.Context) error {
 	return nil
 }
 
+// CloseDB закрывает коннектшн к БД.
 func (s *storage) CloseDB() error {
 	if err := s.db.Close(); err != nil {
 		return fmt.Errorf("close db conn: %w", err)
@@ -106,6 +110,7 @@ func (s *storage) CloseDB() error {
 	return nil
 }
 
+// GetShortURL ищет по URL его сокращение.
 func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -132,8 +137,10 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	return nil
 }
 
+// ErrorDeletedURL специальная ошибка для удаленных URL.
 var ErrorDeletedURL = errors.New("url was deleted")
 
+// GetOriginalURL находит по переданному сокращению оригинальный URL.
 func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, error) {
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -153,6 +160,7 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 	}
 }
 
+// UploadBatch загружает слайс BatchItem в БД.
 func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
 	userID := ctx.Value(config.UserCtxKey)
 	if userID == "" {
@@ -196,6 +204,7 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 	return batch, nil
 }
 
+// GetUserURLs получить все URL загруженные текущим пользователем.
 func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	tctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -230,6 +239,8 @@ func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 	return res, nil
 }
 
+// DeleteURLs удалить список URL.
+// URL должен принаждлежать переданному пользователю.
 func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
