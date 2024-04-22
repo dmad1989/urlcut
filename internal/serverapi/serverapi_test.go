@@ -430,7 +430,7 @@ func BenchmarkCutterHandler(b *testing.B) {
 	c.EXPECT().GetShortAddress().Return(testserver.URL).AnyTimes()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		s.cutterHandler(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL)))
+		s.CutterHandler(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL)))
 	}
 }
 
@@ -509,4 +509,19 @@ func randStringBytes(n int) (string, error) {
 		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+func ExapmleCutterHandler() {
+	//запусп серевера
+	_, s := initEnv()
+	// Вызываем эндпоинт для сокращения URL
+	// Метод POST , путь /
+	res, err := s.Client().Post(s.URL, "text/plain", strings.NewReader("http://ya.ru"))
+	//Обрабатываем ошибку
+	if err != nil {
+		fmt.Println(fmt.Errorf("in request: %w", err))
+	}
+	// 201 - Сокращен успешно
+	// 400 - ошибка
+	fmt.Println(res.Status)
 }
