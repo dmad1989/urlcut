@@ -108,7 +108,7 @@ func (s Server) Run(ctx context.Context) error {
 func (s Server) initHandlers() {
 	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
 	s.mux.Mount("/debug", middleware.Profiler())
-	s.mux.Post("/", s.CutterHandler)
+	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
 	s.mux.Get("/ping", s.pingHandler)
 	s.mux.Post("/api/shorten", s.cutterJSONHandler)
@@ -177,7 +177,7 @@ func (s Server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 // @Failure 401 {string} string "Ошибка авторизации"
 // @Failure 400 {string} string "Ошибка"
 // @Router / [post]
-func (s Server) CutterHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterHandler: reading request body: %w", err))
@@ -219,6 +219,7 @@ func (s Server) CutterHandler(res http.ResponseWriter, req *http.Request) {
 // @Param path path string true "Сокращенный url"
 // @Success 307 "Переход по сокращенному URL"
 // @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 410 {string} string "url was deleted"
 // @Failure 400 {string} string "Ошибка"
 // @Router /{path} [get]
 func (s Server) redirectHandler(res http.ResponseWriter, req *http.Request) {

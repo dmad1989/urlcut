@@ -69,6 +69,10 @@ paths:
           description: Ошибка авторизации
           schema:
             type: string
+        "410":
+          description: url was deleted
+          schema:
+            type: string
       summary: Переход по сокращеному URL
       tags:
       - Operate

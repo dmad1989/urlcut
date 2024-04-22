@@ -232,6 +232,12 @@ const docTemplate = `{
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    "410": {
+                        "description": "url was deleted",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 }
             }
