@@ -61,14 +61,14 @@ type Configer interface {
 	GetShortAddress() string
 }
 
-type server struct {
+type Server struct {
 	cutter ICutter
 	config Configer
 	mux    *chi.Mux
 }
 
-func New(cutter ICutter, config Configer) *server {
-	api := &server{cutter: cutter, config: config, mux: chi.NewMux()}
+func New(cutter ICutter, config Configer) *Server {
+	api := &Server{cutter: cutter, config: config, mux: chi.NewMux()}
 	api.initHandlers()
 	return api
 }
@@ -76,7 +76,7 @@ func New(cutter ICutter, config Configer) *server {
 // Run запускает сервер в отдельной горутине.
 // В другой горутине ожидает сигнала от контекста о завершении, чтобы отключить сервер.
 // Пишет ошибку в консоль, о причине выключения.
-func (s server) Run(ctx context.Context) error {
+func (s Server) Run(ctx context.Context) error {
 	defer logging.Log.Sync()
 	logging.Log.Infof("Server started at %s", s.config.GetURL())
 	httpServer := &http.Server{
@@ -105,7 +105,7 @@ func (s server) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s server) initHandlers() {
+func (s Server) initHandlers() {
 	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
 	s.mux.Mount("/debug", middleware.Profiler())
 	s.mux.Post("/", s.CutterHandler)
@@ -127,7 +127,7 @@ func (s server) initHandlers() {
 // @Failure 401 {string} string "Ошибка авторизации"
 // @Failure 400 {string} string "Ошибка"
 // @Router /api/shorten [post]
-func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 	var reqJSON jsonobject.Request
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("cutterJsonHandler: content-type have to be application/json"))
@@ -177,7 +177,7 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 // @Failure 401 {string} string "Ошибка авторизации"
 // @Failure 400 {string} string "Ошибка"
 // @Router / [post]
-func (s server) CutterHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) CutterHandler(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterHandler: reading request body: %w", err))
@@ -221,7 +221,7 @@ func (s server) CutterHandler(res http.ResponseWriter, req *http.Request) {
 // @Failure 401 {string} string "Ошибка авторизации"
 // @Failure 400 {string} string "Ошибка"
 // @Router /{path} [get]
-func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	path := chi.URLParam(req, "path")
 	if path == "" {
 		responseError(res, fmt.Errorf("redirectHandler: url path is empty"))
@@ -251,7 +251,7 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 // @Failure 401 {string} string "Ошибка авторизации"
 // @Failure 500 {string} string "Ошибка"
 // @Router /ping [get]
-func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) pingHandler(res http.ResponseWriter, req *http.Request) {
 	err := s.cutter.PingDB(req.Context())
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
@@ -271,7 +271,7 @@ func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
 // @Failure 401 {string} string "Ошибка авторизации"
 // @Failure 400 {string} string "Ошибка"
 // @Router /api/shorten/batch [post]
-func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Request) {
 	var batchRequest jsonobject.Batch
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("JSONBatchHandler: content-type have to be application/json"))
@@ -319,7 +319,7 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 // @Failure 204 {string} string "Нет сокращенных URL"
 // @Failure 400 {string} string "Ошибка"
 // @Router /api/user/urls [get]
-func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 	err, _ := req.Context().Value(config.ErrorCtxKey).(error)
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusUnauthorized)
@@ -363,7 +363,7 @@ func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 // @Success 202 {object} jsonobject.ShortIds
 // @Failure 400 {string} string "Ошибка"
 // @Router / [post]
-func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request) {
 	err, _ := req.Context().Value(config.ErrorCtxKey).(error)
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusUnauthorized)

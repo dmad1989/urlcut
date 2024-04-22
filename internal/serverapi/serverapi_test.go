@@ -61,7 +61,7 @@ func (c TestConfig) GetUserContextKey() config.ContextKey {
 	return config.ContextKey{}
 }
 
-func initEnv() (serv *server, testserver *httptest.Server) {
+func initEnv() (serv *Server, testserver *httptest.Server) {
 	tconf = &TestConfig{
 		url:           ":8080",
 		shortAddress:  "http://localhost:8080/",
@@ -511,8 +511,8 @@ func randStringBytes(n int) (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-func ExapmleCutterHandler() {
-	//запусп серевера
+func ExampleServer_CutterHandler() {
+	//запуск серевера
 	_, s := initEnv()
 	// Вызываем эндпоинт для сокращения URL
 	// Метод POST , путь /
@@ -524,4 +524,7 @@ func ExapmleCutterHandler() {
 	// 201 - Сокращен успешно
 	// 400 - ошибка
 	fmt.Println(res.Status)
+
+	// Output:
+	// 201 Created
 }

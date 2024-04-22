@@ -34,7 +34,7 @@ const (
 // Проверяет наличие и валидность токена в cookie "token".
 // Если cookie нет - регистрируем нового пользователя: генерируем новый ID, токен и записываем в cookie.
 // Полученный из токена или сгенерированный userid записываем в контекст вызова.
-func (s server) Auth(h http.Handler) http.Handler {
+func (s Server) Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextW := w
 		tCookie, err := r.Cookie("token")
