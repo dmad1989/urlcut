@@ -4,7 +4,7 @@ package cutter
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	_ "net/http/pprof"
@@ -177,7 +177,5 @@ func randStringBytes(n int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
 	}
-	str := hex.EncodeToString(b)
-	return str[:n], nil
-	// return base64.URLEncoding.EncodeToString(b), nil
+	return base64.URLEncoding.EncodeToString(b), nil
 }

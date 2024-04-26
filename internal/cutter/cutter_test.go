@@ -182,26 +182,10 @@ func TestCheckUrls(t *testing.T) {
 	defer goleak.VerifyNone(t)
 }
 
-func BenchmarkGetKeyByValue(b *testing.B) {
-	b.StopTimer()
-	ctrl := gomock.NewController(b)
-	defer ctrl.Finish()
-	m := mocks.NewMockStore(ctrl)
-	a := New(m)
-	m.EXPECT().GetOriginalURL(gomock.Any(), "someString").Return("returnString", nil).AnyTimes()
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		a.GetKeyByValue(context.TODO(), "someString")
-	}
-}
-
 func BenchmarkUploadBatch(b *testing.B) {
-	b.StopTimer()
-	ctrl := gomock.NewController(b)
-	defer ctrl.Finish()
-	m := mocks.NewMockStore(ctrl)
+	m := EmptyStore{}
 	a := New(m)
-	batch := make(jsonobject.Batch, 200)
+	batch := make(jsonobject.Batch, 0, 200)
 	for i := 0; i < 200; i++ {
 		str, err := randStringBytes(i)
 		if err != nil {
@@ -209,22 +193,16 @@ func BenchmarkUploadBatch(b *testing.B) {
 		}
 		batch = append(batch, jsonobject.BatchItem{ID: str, OriginalURL: str})
 	}
-	m.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(batch, nil).AnyTimes()
-	b.StartTimer()
+	// b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		a.UploadBatch(context.TODO(), batch)
 	}
 }
 
 func BenchmarkDeleteUrls(b *testing.B) {
-	b.StopTimer()
-	ctrl := gomock.NewController(b)
-	defer ctrl.Finish()
-	m := mocks.NewMockStore(ctrl)
+	m := EmptyStore{}
 	a := New(m)
-	m.EXPECT().DeleteURLs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-
-	ids := make(jsonobject.ShortIds, 200)
+	ids := make(jsonobject.ShortIds, 0, 200)
 	for i := 0; i < 200; i++ {
 		str, err := randStringBytes(i)
 		if err != nil {
@@ -232,7 +210,6 @@ func BenchmarkDeleteUrls(b *testing.B) {
 		}
 		ids = append(ids, str)
 	}
-	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		a.DeleteUrls("customID", ids)
 	}
@@ -240,14 +217,37 @@ func BenchmarkDeleteUrls(b *testing.B) {
 
 func BenchmarkCut(b *testing.B) {
 	b.StopTimer()
-	ctrl := gomock.NewController(b)
-	defer ctrl.Finish()
-	m := mocks.NewMockStore(ctrl)
+	m := EmptyStore{}
 	a := New(m)
-	m.EXPECT().Add(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	m.EXPECT().GetShortURL(gomock.Any(), gomock.Any()).Return("url", nil).AnyTimes()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		a.Cut(context.TODO(), "someurl")
 	}
+}
+
+type EmptyStore struct{}
+
+func (s EmptyStore) GetShortURL(ctx context.Context, key string) (string, error) {
+	return "", nil
+}
+func (s EmptyStore) Add(ctx context.Context, original, short string) error {
+	return nil
+}
+func (s EmptyStore) GetOriginalURL(ctx context.Context, value string) (res string, err error) {
+	return "", nil
+}
+func (s EmptyStore) Ping(context.Context) error {
+	return nil
+}
+func (s EmptyStore) CloseDB() error {
+	return nil
+}
+func (s EmptyStore) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
+	return jsonobject.Batch{}, nil
+}
+func (s EmptyStore) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	return jsonobject.Batch{}, nil
+}
+func (s EmptyStore) DeleteURLs(ctx context.Context, userID string, ids []string) error {
+	return nil
 }
