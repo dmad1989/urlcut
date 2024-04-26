@@ -35,14 +35,10 @@ var conf = Config{
 
 // Config хранит параметры для запуска сервера.
 type Config struct {
-	// url - адрес по которому будет доступен сервер.
-	url string
-	// shortAddress - адрес, который будет в сокращении.
-	shortAddress string
-	// fileStoreName - имя json - файла, для хранения сокращенных URL.
+	url           string
+	shortAddress  string
 	fileStoreName string
-	//dbConnName - DSN к PostgresSQL
-	dbConnName string
+	dbConnName    string
 }
 
 // Инициализация конфигурации значениями флага или по умолчанию.

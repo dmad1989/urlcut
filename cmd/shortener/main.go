@@ -48,7 +48,7 @@ func main() {
 // initStore отвечает за инициализацию хранилища сокращений.
 //
 // хранилище может быть трех видов: БД postgres, json-файл или внутреннее хранилище (map)
-func initStore(ctx context.Context, conf config.Config) (storage cutter.IStore, err error) {
+func initStore(ctx context.Context, conf config.Config) (storage cutter.Store, err error) {
 	if conf.GetDBConnName() != "" {
 		storage, err = dbstore.New(ctx, conf)
 		if err != nil {

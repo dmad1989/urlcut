@@ -18,8 +18,8 @@ import (
 
 const batchSize = 100
 
-// IStore интерфейс слоя хранилища.
-type IStore interface {
+// Store интерфейс слоя хранилища.
+type Store interface {
 	GetShortURL(ctx context.Context, key string) (string, error)
 	Add(ctx context.Context, original, short string) error
 	GetOriginalURL(ctx context.Context, value string) (res string, err error)
@@ -32,11 +32,11 @@ type IStore interface {
 
 // App структура с бизнес-логикой.
 type App struct {
-	storage IStore
+	storage Store
 }
 
 // New Создает App
-func New(s IStore) *App {
+func New(s Store) *App {
 	return &App{storage: s}
 }
 
