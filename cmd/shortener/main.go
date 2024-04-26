@@ -1,3 +1,7 @@
+// main корневой модуль сервиса.
+// запускает создание контекста, инициализацию слоев приложения, сервер.
+// Хранилище может быть двух типов: БД Postgres или json-файл.
+// Тип зависит от конфигурации при вызове. См описание пакета Config
 package main
 
 import (
@@ -6,6 +10,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	_ "net/http/pprof"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
@@ -39,6 +45,9 @@ func main() {
 	}
 }
 
+// initStore отвечает за инициализацию хранилища сокращений.
+//
+// хранилище может быть трех видов: БД postgres, json-файл или внутреннее хранилище (map)
 func initStore(ctx context.Context, conf config.Config) (storage cutter.Store, err error) {
 	if conf.GetDBConnName() != "" {
 		storage, err = dbstore.New(ctx, conf)

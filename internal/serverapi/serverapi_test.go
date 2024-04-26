@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,11 +14,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dmad1989/urlcut/internal/config"
-	"github.com/dmad1989/urlcut/internal/cutter"
-	"github.com/dmad1989/urlcut/internal/store"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dmad1989/urlcut/internal/config"
+	"github.com/dmad1989/urlcut/internal/cutter"
+	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/mocks"
+	"github.com/dmad1989/urlcut/internal/store"
 )
 
 const (
@@ -55,7 +61,7 @@ func (c TestConfig) GetUserContextKey() config.ContextKey {
 	return config.ContextKey{}
 }
 
-func initEnv() (serv *server, testserver *httptest.Server) {
+func initEnv() (serv *Server, testserver *httptest.Server) {
 	tconf = &TestConfig{
 		url:           ":8080",
 		shortAddress:  "http://localhost:8080/",
@@ -393,4 +399,114 @@ func unzipBody(t *testing.T, body io.ReadCloser) string {
 	b, err := io.ReadAll(zr)
 	require.NoError(t, err)
 	return string(b)
+}
+
+func BenchmarkCutterJSONHandler(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	a := mocks.NewMockApp(ctrl)
+	c := mocks.NewMockConf(ctrl)
+	s := New(a, c)
+	a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return("returnString", nil).AnyTimes()
+	_, testserver := initEnv()
+	defer testserver.Close()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		s.cutterJSONHandler(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL)))
+	}
+}
+
+func BenchmarkCutterHandler(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	a := mocks.NewMockApp(ctrl)
+	c := mocks.NewMockConf(ctrl)
+	s := New(a, c)
+	_, testserver := initEnv()
+	defer testserver.Close()
+	a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return("returnString", nil).AnyTimes()
+	c.EXPECT().GetShortAddress().Return(testserver.URL).AnyTimes()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		s.cutterHandler(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL)))
+	}
+}
+
+func BenchmarkCutterJSONBatchHandler(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	a := mocks.NewMockApp(ctrl)
+	c := mocks.NewMockConf(ctrl)
+	s := New(a, c)
+	_, testserver := initEnv()
+	defer testserver.Close()
+	batch := make(jsonobject.Batch, 200)
+	for i := 0; i < 200; i++ {
+		str, err := randStringBytes(i)
+		if err != nil {
+			panic("randStringBytes out of control")
+		}
+		batch = append(batch, jsonobject.BatchItem{ID: str, OriginalURL: str})
+	}
+
+	a.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(batch, nil).AnyTimes()
+	c.EXPECT().GetShortAddress().Return(testserver.URL).AnyTimes()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		s.cutterJSONBatchHandler(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL)))
+	}
+}
+
+func BenchmarkUserUrlsHandler(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	a := mocks.NewMockApp(ctrl)
+	c := mocks.NewMockConf(ctrl)
+	s := New(a, c)
+	_, testserver := initEnv()
+	defer testserver.Close()
+	batch := make(jsonobject.Batch, 200)
+	for i := 0; i < 200; i++ {
+		str, err := randStringBytes(i)
+		if err != nil {
+			panic("randStringBytes out of control")
+		}
+		batch = append(batch, jsonobject.BatchItem{ID: str, OriginalURL: str})
+	}
+
+	a.EXPECT().GetUserURLs(gomock.Any()).Return(batch, nil).AnyTimes()
+	c.EXPECT().GetShortAddress().Return(testserver.URL).AnyTimes()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		s.userUrlsHandler(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL)))
+	}
+}
+
+func BenchmarkDeleteUserUrlsHandler(b *testing.B) {
+	b.StopTimer()
+	ctrl := gomock.NewController(b)
+	defer ctrl.Finish()
+	a := mocks.NewMockApp(ctrl)
+	c := mocks.NewMockConf(ctrl)
+	s := New(a, c)
+	_, testserver := initEnv()
+	defer testserver.Close()
+	a.EXPECT().DeleteUrls(gomock.Any(), gomock.Any()).AnyTimes()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		s.deleteUserUrlsHandler(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, testserver.URL, strings.NewReader(positiveURL)))
+	}
+}
+
+func randStringBytes(n int) (string, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", fmt.Errorf("randStringBytes: Generating random string: %w", err)
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }

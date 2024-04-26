@@ -1,3 +1,4 @@
+// Модуль store содержит методы для работы с хранилищем - файлом.
 package store
 
 import (
@@ -14,7 +15,7 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 )
 
-type conf interface {
+type configer interface {
 	GetFileStoreName() string
 	GetDBConnName() string
 }
@@ -26,7 +27,8 @@ type storage struct {
 	fileName  string
 }
 
-func New(ctx context.Context, c conf) (*storage, error) {
+// New находит или создает файл, инициализирует Map - для хранения.
+func New(ctx context.Context, c configer) (*storage, error) {
 	fn := ""
 	fp := ""
 	if c.GetFileStoreName() != "" {
@@ -52,17 +54,24 @@ func New(ctx context.Context, c conf) (*storage, error) {
 	return &res, nil
 }
 
+// Ping не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
 func (s *storage) Ping(ctx context.Context) error {
 	return errors.New("unsupported store method")
 }
 
+// CloseDB не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
 func (s *storage) CloseDB() error {
 	return nil
 }
 
-func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
+// GetShortURL ищет по URL его сокращение.
+func (s *storage) GetShortURL(ctx context.Context, url string) (string, error) {
 	s.rw.RLock()
-	generated, isFound := s.urlMap[key]
+	generated, isFound := s.urlMap[url]
 	s.rw.RUnlock()
 	if !isFound {
 		return "", nil
@@ -70,6 +79,7 @@ func (s *storage) GetShortURL(ctx context.Context, key string) (string, error) {
 	return generated, nil
 }
 
+// Add добавляет в файл пару URL - сокращение.
 func (s *storage) Add(ctx context.Context, original, short string) error {
 	s.rw.Lock()
 	defer s.rw.Unlock()
@@ -88,6 +98,7 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	return nil
 }
 
+// GetOriginalURL находит по переданному сокращению оригинальный URL.
 func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, error) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
@@ -98,6 +109,7 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 	return res, nil
 }
 
+// UploadBatch загружает слайс BatchItem в файл.
 func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error) {
 	for i := 0; i < len(batch); i++ {
 		short, err := s.GetShortURL(ctx, batch[i].OriginalURL)
@@ -114,6 +126,22 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 	return batch, nil
 }
 
+// GetUserURLs не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
+func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
+	return nil, nil
+}
+
+// DeleteURLs не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
+func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
+	return errors.New("unsupported store method")
+}
+
+// readFromFile открывает файл на чтение.
+// содержимое файла загружается в map.
 func (s *storage) readFromFile() error {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
@@ -134,6 +162,7 @@ func (s *storage) readFromFile() error {
 	return nil
 }
 
+// Consumer открывает файл на чтение и читает из него.
 type Consumer struct {
 	file    *os.File
 	scanner *bufio.Scanner
@@ -151,6 +180,8 @@ func newConsumer(filename string) (*Consumer, error) {
 	}, nil
 }
 
+// ReadItems читает каждую строку в jsonobject.Item.
+// Возвращает слайс jsonobject.Item.
 func (c *Consumer) ReadItems() ([]jsonobject.Item, error) {
 	items := []jsonobject.Item{}
 	for c.scanner.Scan() {
@@ -168,6 +199,7 @@ func (c *Consumer) ReadItems() ([]jsonobject.Item, error) {
 	return items, nil
 }
 
+// writeItem открывает файл на запись и записывает 1 строку информации.
 func writeItem(fname string, i jsonobject.Item) error {
 	data, err := i.MarshalJSON()
 	if err != nil {
@@ -187,6 +219,8 @@ func writeItem(fname string, i jsonobject.Item) error {
 	return nil
 }
 
+// createIfNeeded находит файл с именем fileName по пути path.
+// если файл или путь не найдены - создаст их.
 func createIfNeeded(path string, fileName string) error {
 	defer logging.Log.Sync()
 	err := os.MkdirAll(path, 0750)
@@ -213,11 +247,4 @@ func createIfNeeded(path string, fileName string) error {
 	}
 
 	return err
-}
-func (s *storage) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
-	return nil, nil
-}
-
-func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) error {
-	return errors.New("unsupported store method")
 }

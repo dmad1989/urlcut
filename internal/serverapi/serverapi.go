@@ -9,18 +9,44 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
+
+	_ "net/http/pprof"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/dbstore"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
-	"github.com/go-chi/chi/v5"
-	"golang.org/x/sync/errgroup"
 )
 
-type app interface {
+// @Title URLCutter API
+// @Description Сервис сокращения ссылок.
+// @Version 1.0
+
+// @Contact.email dmad1989@gmail.com
+
+// @SecurityDefinitions.token tokenAuth
+// @In cookie
+// @Name token
+
+// @Tag.name Cut
+// @Tag.description "Группа запросов для сокращения URL"
+
+// @Tag.name UserURLs
+// @Tag.description "Группа запросов для работы с URL пользователя"
+
+// @Tag.name Operate
+// @Tag.description "Группа запросов для работы с сокращенными URL"
+
+// @Tag.name Info
+// @Tag.description "Группа запросов состояния сервиса"
+
+// ICutter интерфейс слоя с бизнес логикой
+type ICutter interface {
 	Cut(cxt context.Context, url string) (generated string, err error)
 	GetKeyByValue(cxt context.Context, value string) (res string, err error)
 	PingDB(context.Context) error
@@ -29,35 +55,30 @@ type app interface {
 	DeleteUrls(userID string, ids jsonobject.ShortIds)
 }
 
-type conf interface {
+// Configer интерйфейс конфигураци
+type Configer interface {
 	GetURL() string
 	GetShortAddress() string
 }
 
-type server struct {
-	cutterApp app
-	config    conf
-	mux       *chi.Mux
+// Server содержит интерфейсы для обращения к другим слоям и роутинг.
+type Server struct {
+	cutter ICutter
+	config Configer
+	mux    *chi.Mux
 }
 
-func New(cutApp app, config conf) *server {
-	api := &server{cutterApp: cutApp, config: config, mux: chi.NewMux()}
+// New создает новый Server и инициализирует Хэндлеры.
+func New(cutter ICutter, config Configer) *Server {
+	api := &Server{cutter: cutter, config: config, mux: chi.NewMux()}
 	api.initHandlers()
 	return api
 }
 
-func (s server) initHandlers() {
-	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
-	s.mux.Post("/", s.cutterHandler)
-	s.mux.Get("/{path}", s.redirectHandler)
-	s.mux.Get("/ping", s.pingHandler)
-	s.mux.Post("/api/shorten", s.cutterJSONHandler)
-	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
-	s.mux.Get("/api/user/urls", s.userUrlsHandler)
-	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
-}
-
-func (s server) Run(ctx context.Context) error {
+// Run запускает сервер в отдельной горутине.
+// В другой горутине ожидает сигнала от контекста о завершении, чтобы отключить сервер.
+// Пишет ошибку в консоль, о причине выключения.
+func (s Server) Run(ctx context.Context) error {
 	defer logging.Log.Sync()
 	logging.Log.Infof("Server started at %s", s.config.GetURL())
 	httpServer := &http.Server{
@@ -86,7 +107,29 @@ func (s server) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
+func (s Server) initHandlers() {
+	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
+	s.mux.Mount("/debug", middleware.Profiler())
+	s.mux.Post("/", s.cutterHandler)
+	s.mux.Get("/{path}", s.redirectHandler)
+	s.mux.Get("/ping", s.pingHandler)
+	s.mux.Post("/api/shorten", s.cutterJSONHandler)
+	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
+	s.mux.Get("/api/user/urls", s.userUrlsHandler)
+	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
+}
+
+// cutterJSONHandler godoc
+// @Tags Cut
+// @Summary Запрос на сокращение URL
+// @ID cutterJSON
+// @Accept  json
+// @Produce json
+// @Success 201 {object} jsonobject.Response
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 400 {string} string "Ошибка"
+// @Router /api/shorten [post]
+func (s Server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 	var reqJSON jsonobject.Request
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("cutterJsonHandler: content-type have to be application/json"))
@@ -101,7 +144,7 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 		responseError(res, fmt.Errorf("cutterJsonHandler: decoding request: %w", err))
 		return
 	}
-	code, err := s.cutterApp.Cut(req.Context(), reqJSON.URL)
+	code, err := s.cutter.Cut(req.Context(), reqJSON.URL)
 	status := http.StatusCreated
 	if err != nil {
 		var uerr *cutter.UniqueURLError
@@ -126,7 +169,17 @@ func (s server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 	res.Write(respb)
 }
 
-func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
+// cutterHandler godoc
+// @Tags Cut
+// @Summary Запрос на сокращение URL
+// @ID cutterText
+// @Accept  plain/text
+// @Produce plain/text
+// @Success 201 {string} string "Сокращенный URL"
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 400 {string} string "Ошибка"
+// @Router / [post]
+func (s Server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		responseError(res, fmt.Errorf("cutterHandler: reading request body: %w", err))
@@ -144,7 +197,7 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	code, err := s.cutterApp.Cut(req.Context(), string(body))
+	code, err := s.cutter.Cut(req.Context(), string(body))
 	status := http.StatusCreated
 	if err != nil {
 		var uerr *cutter.UniqueURLError
@@ -160,14 +213,25 @@ func (s server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte(fmt.Sprintf("%s/%s", s.config.GetShortAddress(), code)))
 }
 
-func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
+// redirectHandler godoc
+// @Tags Operate
+// @Summary Переход по сокращеному URL
+// @ID redirect
+// @Accept  plain/text
+// @Param path path string true "Сокращенный url"
+// @Success 307 "Переход по сокращенному URL"
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 410 {string} string "url was deleted"
+// @Failure 400 {string} string "Ошибка"
+// @Router /{path} [get]
+func (s Server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	path := chi.URLParam(req, "path")
 	if path == "" {
 		responseError(res, fmt.Errorf("redirectHandler: url path is empty"))
 		return
 	}
 
-	redirectURL, err := s.cutterApp.GetKeyByValue(req.Context(), path)
+	redirectURL, err := s.cutter.GetKeyByValue(req.Context(), path)
 	if err != nil {
 		if errors.Is(err, dbstore.ErrorDeletedURL) {
 			res.WriteHeader(http.StatusGone)
@@ -180,36 +244,18 @@ func (s server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	http.Redirect(res, req, redirectURL, http.StatusTemporaryRedirect)
 }
 
-func responseError(res http.ResponseWriter, err error) {
-	res.WriteHeader(http.StatusBadRequest)
-	res.Write([]byte(err.Error()))
-}
-
-func gzipMiddleware(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nextW := w
-		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			cr, err := newCompressReader(r.Body)
-			if err != nil {
-				responseError(w, fmt.Errorf("gzip: read compressed body: %w", err))
-				return
-			}
-			r.Body = cr
-			defer cr.Close()
-		}
-		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			w.Header()
-			cw := newCompressWriter(w)
-			nextW = cw
-			defer cw.Close()
-		}
-
-		h.ServeHTTP(nextW, r)
-	})
-}
-
-func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
-	err := s.cutterApp.PingDB(req.Context())
+// pingHandler godoc
+// @Tags Info
+// @Summary Проверка соединения с БД
+// @ID ping
+// @Accept  */*
+// @Produce plain/text
+// @Success 200 {string} string
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 500 {string} string "Ошибка"
+// @Router /ping [get]
+func (s Server) pingHandler(res http.ResponseWriter, req *http.Request) {
+	err := s.cutter.PingDB(req.Context())
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(fmt.Errorf("pingHandler : %w", err).Error()))
@@ -218,7 +264,17 @@ func (s server) pingHandler(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusOK)
 }
 
-func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Request) {
+// cutterJSONBatchHandler godoc
+// @Tags Cut
+// @Summary Запрос на сокращение списка URL
+// @ID cutterBatch
+// @Accept  json
+// @Produce json
+// @Success 201 {object} jsonobject.Batch
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 400 {string} string "Ошибка"
+// @Router /api/shorten/batch [post]
+func (s Server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Request) {
 	var batchRequest jsonobject.Batch
 	if req.Header.Get("Content-Type") != "application/json" {
 		responseError(res, fmt.Errorf("JSONBatchHandler: content-type have to be application/json"))
@@ -235,7 +291,7 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 		return
 	}
 	logging.Log.Info(batchRequest)
-	batchResponse, err := s.cutterApp.UploadBatch(req.Context(), batchRequest)
+	batchResponse, err := s.cutter.UploadBatch(req.Context(), batchRequest)
 
 	if err != nil {
 		responseError(res, fmt.Errorf("JSONBatchHandler: getting code for url: %w", err))
@@ -256,14 +312,24 @@ func (s server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 	res.Write(respb)
 }
 
-func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
+// userUrlsHandler godoc
+// @Tags UserURLs
+// @Summary Все скоращенные URL текущего пользователя
+// @ID userURLs
+// @Produce plain/text
+// @Success 200 {object} jsonobject.Batch
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 204 {string} string "Нет сокращенных URL"
+// @Failure 400 {string} string "Ошибка"
+// @Router /api/user/urls [get]
+func (s Server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 	err, _ := req.Context().Value(config.ErrorCtxKey).(error)
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	urls, err := s.cutterApp.GetUserURLs(req.Context())
+	urls, err := s.cutter.GetUserURLs(req.Context())
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			res.WriteHeader(http.StatusNoContent)
@@ -291,7 +357,16 @@ func (s server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 	res.Write(respb)
 }
 
-func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request) {
+// deleteUserUrlsHandler godoc
+// @Tags UserURLs
+// @Summary Запрос на удаление сокращеных URL
+// @ID deleteUserUrls
+// @Accept  json
+// @Produce plain/text
+// @Success 202 {object} jsonobject.ShortIds
+// @Failure 400 {string} string "Ошибка"
+// @Router / [post]
+func (s Server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request) {
 	err, _ := req.Context().Value(config.ErrorCtxKey).(error)
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusUnauthorized)
@@ -323,6 +398,11 @@ func (s server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 		responseError(res, errors.New("CheckIsUserURL, wrong user type in context"))
 		return
 	}
-	go s.cutterApp.DeleteUrls(userID, ids)
+	go s.cutter.DeleteUrls(userID, ids)
 	res.WriteHeader(http.StatusAccepted)
+}
+
+func responseError(res http.ResponseWriter, err error) {
+	res.WriteHeader(http.StatusBadRequest)
+	res.Write([]byte(err.Error()))
 }

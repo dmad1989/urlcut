@@ -2,8 +2,10 @@ package serverapi
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type compressWriter struct {
@@ -18,19 +20,23 @@ func newCompressWriter(w http.ResponseWriter) *compressWriter {
 	}
 }
 
+// Header реализует writer интерфейс для compressWriter.
 func (c *compressWriter) Header() http.Header {
 	return c.w.Header()
 }
 
+// Write реализует writer интерфейс для compressWriter.
 func (c *compressWriter) Write(p []byte) (int, error) {
 	return c.zw.Write(p)
 }
 
+// Write реализует writer интерфейс для compressWriter.
 func (c *compressWriter) WriteHeader(statusCode int) {
 	c.w.Header().Set("Content-Encoding", "gzip")
 	c.w.WriteHeader(statusCode)
 }
 
+// Write реализует writer интерфейс для compressWriter.
 func (c *compressWriter) Close() error {
 	return c.zw.Close()
 }
@@ -52,13 +58,38 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	}, nil
 }
 
+// Write реализует reader интерфейс для compressReader.
 func (c compressReader) Read(p []byte) (n int, err error) {
 	return c.zr.Read(p)
 }
 
+// Write реализует reader интерфейс для compressReader.
 func (c *compressReader) Close() error {
 	if err := c.r.Close(); err != nil {
 		return err
 	}
 	return c.zr.Close()
+}
+
+func gzipMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextW := w
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			cr, err := newCompressReader(r.Body)
+			if err != nil {
+				responseError(w, fmt.Errorf("gzip: read compressed body: %w", err))
+				return
+			}
+			r.Body = cr
+			defer cr.Close()
+		}
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header()
+			cw := newCompressWriter(w)
+			nextW = cw
+			defer cw.Close()
+		}
+
+		h.ServeHTTP(nextW, r)
+	})
 }

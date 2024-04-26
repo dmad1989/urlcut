@@ -7,56 +7,34 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+
+	"github.com/dmad1989/urlcut/internal/config"
 )
 
+// Claims хранит в себе данные токена
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID string
 }
 
+// Ошибки авторизации
 var (
-	ErrorNoUser       = errors.New("no userid in auth token")
-	ErrorInvalidToken = errors.New("auth token not valid")
+	ErrorNoUser       = errors.New("no userid in auth token") // в токене нет userId
+	ErrorInvalidToken = errors.New("auth token not valid")    // токен не прошел валидацию
 )
 
-const tokenExp = time.Hour * 6
-const secretKey = "gopracticumshoretenersecretkey"
+const (
+	tokenExp  = time.Hour * 6
+	secretKey = "gopracticumshoretenersecretkey"
+)
 
-func checkToken(t string) (string, error) {
-	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(t, claims,
-		func(t *jwt.Token) (interface{}, error) {
-			return []byte(secretKey), nil
-		})
-	if err != nil || !token.Valid {
-		return "", ErrorInvalidToken
-	}
-	if claims.UserID == "" {
-		return "", ErrorNoUser
-	}
-	return claims.UserID, nil
-}
-
-func generateToken(userID string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
-		},
-		UserID: userID,
-	})
-
-	tokenString, err := token.SignedString([]byte(secretKey))
-	if err != nil {
-		return "", fmt.Errorf("generateToken: %w", err)
-	}
-
-	return tokenString, nil
-}
-
-func (s server) Auth(h http.Handler) http.Handler {
+// Auth это middleware для регистрации и авторизации пользователей.
+// Проверяет наличие и валидность токена в cookie "token".
+// Если cookie нет - регистрируем нового пользователя: генерируем новый ID, токен и записываем в cookie.
+// Полученный из токена или сгенерированный userid записываем в контекст вызова.
+func (s Server) Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextW := w
 		tCookie, err := r.Cookie("token")
@@ -93,6 +71,39 @@ func (s server) Auth(h http.Handler) http.Handler {
 		ctx = context.WithValue(ctx, config.ErrorCtxKey, err)
 		h.ServeHTTP(nextW, r.WithContext(ctx))
 	})
+}
+
+// checkToken проверяет токен на валидность.
+func checkToken(t string) (string, error) {
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(t, claims,
+		func(t *jwt.Token) (interface{}, error) {
+			return []byte(secretKey), nil
+		})
+	if err != nil || !token.Valid {
+		return "", ErrorInvalidToken
+	}
+	if claims.UserID == "" {
+		return "", ErrorNoUser
+	}
+	return claims.UserID, nil
+}
+
+// generateToken генерирует HS256 - токен по userID.
+func generateToken(userID string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExp)),
+		},
+		UserID: userID,
+	})
+
+	tokenString, err := token.SignedString([]byte(secretKey))
+	if err != nil {
+		return "", fmt.Errorf("generateToken: %w", err)
+	}
+
+	return tokenString, nil
 }
 
 func createUserID() string {
