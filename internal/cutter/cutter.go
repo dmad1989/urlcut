@@ -1,4 +1,4 @@
-// Сutter - это модуль с бизнес логикой сервиса.
+// Package cutter - модуль с бизнес логикой сервиса.
 package cutter
 
 import (

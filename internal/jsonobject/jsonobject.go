@@ -1,3 +1,5 @@
+// Package jsonobject contain dto for json.
+// Objects processed to json using easyjson.
 package jsonobject
 
 //easyjson:json

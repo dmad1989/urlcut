@@ -140,7 +140,8 @@ func (s Server) cutterJSONHandler(res http.ResponseWriter, req *http.Request) {
 		responseError(res, fmt.Errorf("cutterJsonHandler: reading request body: %w", err))
 		return
 	}
-	if err := reqJSON.UnmarshalJSON(body); err != nil {
+	err = reqJSON.UnmarshalJSON(body)
+	if err != nil {
 		responseError(res, fmt.Errorf("cutterJsonHandler: decoding request: %w", err))
 		return
 	}
@@ -286,7 +287,8 @@ func (s Server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	if err := batchRequest.UnmarshalJSON(body); err != nil {
+	err = batchRequest.UnmarshalJSON(body)
+	if err != nil {
 		responseError(res, fmt.Errorf("JSONBatchHandler: decoding request: %w", err))
 		return
 	}

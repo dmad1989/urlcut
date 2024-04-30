@@ -50,10 +50,10 @@ func (s Server) Auth(h http.Handler) http.Handler {
 		switch {
 		case errors.Is(err, http.ErrNoCookie) || errors.Is(err, ErrorInvalidToken):
 			userID = createUserID()
-			token, err := generateToken(userID)
-			if err != nil {
+			token, tokenErr := generateToken(userID)
+			if tokenErr != nil {
 				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(fmt.Errorf("auth : %w", err).Error()))
+				w.Write([]byte(fmt.Errorf("auth : %w", tokenErr).Error()))
 				return
 			}
 			cookie := http.Cookie{

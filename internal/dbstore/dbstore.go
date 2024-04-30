@@ -1,4 +1,4 @@
-// Модуль dbstore содержит методы для работы с хранилищем - БД.
+// Package dbstore содержит методы для работы с хранилищем - БД.
 // Использует github.com/pressly/goose/v3 для sql миграций, стандартный database/sql с github.com/jackc/pgx/v5 в качестве драйвера.
 package dbstore
 

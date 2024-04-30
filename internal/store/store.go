@@ -1,4 +1,4 @@
-// Модуль store содержит методы для работы с хранилищем - файлом.
+// Package store содержит методы для работы с хранилищем - файлом.
 package store
 
 import (
@@ -233,7 +233,7 @@ func createIfNeeded(path string, fileName string) error {
 		return fmt.Errorf("chdir: %w", err)
 	}
 
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+	if _, err = os.Stat(fileName); os.IsNotExist(err) {
 		file, err := os.Create(fileName)
 		if err1 := file.Close(); err1 != nil && err == nil {
 			err = fmt.Errorf("create file: %w", err1)
