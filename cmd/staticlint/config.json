@@ -1,0 +1,11 @@
+{
+    "staticcheck": {
+       "groups" : ["SA", "ST"],
+       "checks": [
+        "QF1012", 
+        "QF1010",
+        "QF1009",
+        "QF1004",
+        "QF1003"
+    ]}
+}
