@@ -234,14 +234,14 @@ func createIfNeeded(path string, fileName string) error {
 	}
 
 	if _, err = os.Stat(fileName); os.IsNotExist(err) {
-		file, err := os.Create(fileName)
-		if err1 := file.Close(); err1 != nil && err == nil {
-			err = fmt.Errorf("create file: %w", err1)
+		file, errCreate := os.Create(fileName)
+		if err1 := file.Close(); err1 != nil && errCreate == nil {
+			errCreate = fmt.Errorf("create file: %w", err1)
 		}
-		if err == nil {
+		if errCreate == nil {
 			logging.Log.Debugf("file was created: %s (path %s)", fileName, path)
 		}
-		return err
+		return errCreate
 	} else {
 		logging.Log.Debugf("file was found: %s (path %s)", fileName, path)
 	}
