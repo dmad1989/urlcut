@@ -53,10 +53,12 @@ import (
 
 const configFile = "config.json"
 
+// ConfigData is struct representing checks from config.json.
 type ConfigData struct {
 	Staticcheck Staticcheck
 }
 
+// Staticcheck is struct representing checks from config.json.
 type Staticcheck struct {
 	groups []string
 	checks []string
