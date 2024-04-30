@@ -25,8 +25,8 @@ func TestCut(t *testing.T) {
 	}
 	type mockParams struct {
 		addErrReturn error
-		getURLReturn string
 		getErrReturn error
+		getURLReturn string
 		getTimes     int
 	}
 	type expected struct {
@@ -128,10 +128,10 @@ func TestCheckUrls(t *testing.T) {
 	m := mocks.NewMockStore(ctrl)
 
 	tests := []struct {
+		dbError  error
 		name     string
 		inputSl  []string
 		maxTimes int
-		dbError  error
 	}{{
 		name:     "10els",
 		inputSl:  make([]string, 10),

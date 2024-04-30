@@ -79,15 +79,15 @@ func initEnv() (serv *Server, testserver *httptest.Server) {
 }
 
 type postRequest struct {
-	httpMethod string
 	body       io.Reader
+	httpMethod string
 	jsonHeader bool
 }
 
 type expectedPostResponse struct {
-	code        int
 	bodyPattern string
 	bodyMessage string
+	code        int
 }
 
 func TestInitHandler(t *testing.T) {
@@ -134,9 +134,9 @@ func TestCutterHandler(t *testing.T) {
 	serv, testserver := initEnv()
 	defer testserver.Close()
 	tests := []struct {
+		expResp expectedPostResponse
 		name    string
 		request postRequest
-		expResp expectedPostResponse
 	}{{
 		name: "negative - wrong method",
 		request: postRequest{
@@ -233,8 +233,8 @@ func TestRedirectHandler(t *testing.T) {
 		url        string
 	}
 	type expectedResponse struct {
-		code        int
 		bodyMessage string
+		code        int
 	}
 	_, testserver := initEnv()
 	defer testserver.Close()

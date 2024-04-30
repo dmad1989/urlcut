@@ -148,8 +148,8 @@ func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 // UniqueURLError ошибка уникальности URL.
 // Используется для отделения данного типа ошибок от других, по требованиям бизнес логики.
 type UniqueURLError struct {
-	Code string
 	Err  error
+	Code string
 }
 
 // Error реализует интерфейс error для UniqueURLError.

@@ -21,10 +21,10 @@ type configer interface {
 }
 
 type storage struct {
-	rw        sync.RWMutex
 	urlMap    map[string]string
 	revertMap map[string]string
 	fileName  string
+	rw        sync.RWMutex
 }
 
 // New находит или создает файл, инициализирует Map - для хранения.
