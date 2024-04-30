@@ -194,7 +194,7 @@ func (c *Consumer) ReadItems() ([]jsonobject.Item, error) {
 		items = append(items, item)
 	}
 	if err := c.scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan file error: %v", err)
+		return nil, fmt.Errorf("scan file error: %w", err)
 	}
 	return items, nil
 }

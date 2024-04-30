@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/errwrap/errwrap"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
 	"golang.org/x/tools/go/analysis/passes/asmdecl"
@@ -102,6 +103,7 @@ func main() {
 		unsafeptr.Analyzer,
 		unusedresult.Analyzer,
 		unusedwrite.Analyzer,
+		errwrap.Analyzer,
 		ExitCheckAnalyzer,
 	}
 	cfg := confidData()
