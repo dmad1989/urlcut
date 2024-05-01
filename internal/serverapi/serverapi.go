@@ -81,7 +81,7 @@ func New(cutter ICutter, config Configer) *Server {
 func (s Server) Run(ctx context.Context) error {
 	defer func() {
 		err := logging.Log.Sync()
-		if err == nil {
+		if err != nil {
 			logging.Log.Fatalf("log.sync in run: %w", err)
 		}
 	}()
