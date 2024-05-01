@@ -14,16 +14,25 @@
 //
 // 5. Check for calling os.Exit in main func of main package
 //
+// 6. Check for unchecked erros https://github.com/kisielk/errcheck (uses errcheck_exclude.txt)
+//
 // Example:
 //
 //	staticlint -SA1000 <project path>
 //
 // Perform SA1000 analysis for given project.
+//
+// Example:
+//
+//	staticlint -errcheck.exclude errcheck_exclude.txt <project path>
+//
+// Perform errcheck analysis for given project excluding function from file errcheck_exclude.txt.
+//
 // For more details run:
 //
 //	staticlint -help
 //
 // exitanalyzer investigates main package for calling os.Exit from main function. Run this check with following command:
 //
-//	staticlint -exitanalyzer
+//	staticlint --exitcheck
 package main

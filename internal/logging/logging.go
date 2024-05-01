@@ -72,7 +72,15 @@ func WithLog(h http.Handler) http.Handler {
 			ResponseWriter: w,
 			responseData:   responseData,
 		}
-		defer Log.Sync()
+		defer func() {
+			err := Log.Sync()
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(fmt.Errorf("log sync, in logging middleware : %w", err).Error()))
+				return
+			}
+		}()
+
 		h.ServeHTTP(&lw, r)
 		duration := time.Since(start)
 		Log.Infow("Response",

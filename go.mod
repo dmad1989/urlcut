@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgx/v5 v5.5.4
+	github.com/kisielk/errcheck v1.7.0
 	github.com/mailru/easyjson v0.7.7
 	github.com/pressly/goose/v3 v3.18.0
 	github.com/stretchr/testify v1.9.0

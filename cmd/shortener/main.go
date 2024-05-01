@@ -27,14 +27,25 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer logging.Log.Sync()
+	defer func() {
+		err = logging.Log.Sync()
+		if err == nil {
+			logging.Log.Fatalf("log.sync in main: %w", err)
+		}
+	}()
+
 	conf := config.ParseConfig()
 
 	storage, err := initStore(ctx, conf)
 	if err != nil {
 		logging.Log.Fatalf("initStore: %w", err)
 	}
-	defer storage.CloseDB()
+	defer func() {
+		err = storage.CloseDB()
+		if err == nil {
+			logging.Log.Fatalf("storage.CloseDB in main: %w", err)
+		}
+	}()
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

@@ -81,13 +81,25 @@ func gzipMiddleware(h http.Handler) http.Handler {
 				return
 			}
 			r.Body = cr
-			defer cr.Close()
+			defer func() {
+				err = cr.Close()
+				if err != nil {
+					responseError(w, fmt.Errorf("gzip: close after read compressed body: %w", err))
+					return
+				}
+			}()
 		}
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			w.Header()
 			cw := newCompressWriter(w)
 			nextW = cw
-			defer cw.Close()
+			defer func() {
+				err := cw.Close()
+				if err != nil {
+					responseError(w, fmt.Errorf("gzip: close after write compressed body: %w", err))
+					return
+				}
+			}()
 		}
 
 		h.ServeHTTP(nextW, r)

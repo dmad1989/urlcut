@@ -184,7 +184,9 @@ func TestCutterHandler(t *testing.T) {
 			require.NoError(t, err)
 			res, err := testserver.Client().Do(request)
 			require.NoError(t, err)
-			defer res.Body.Close()
+			defer func() {
+				require.NoError(t, res.Body.Close())
+			}()
 			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
 			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
 		})
@@ -215,7 +217,9 @@ func doCut(t *testing.T, testserver *httptest.Server) (string, error) {
 	require.NoError(t, err)
 	res, err := testserver.Client().Do(request)
 	require.NoError(t, err)
-	defer res.Body.Close()
+	defer func() {
+		require.NoError(t, res.Body.Close())
+	}()
 	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", err
@@ -289,7 +293,9 @@ func TestRedirectHandler(t *testing.T) {
 			res, err := client.Do(request)
 
 			require.NoError(t, err)
-			defer res.Body.Close()
+			defer func() {
+				require.NoError(t, res.Body.Close())
+			}()
 			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
@@ -356,7 +362,9 @@ func TestCutterJSONHandler(t *testing.T) {
 			require.NoError(t, err)
 			res, err := testserver.Client().Do(request)
 			require.NoError(t, err)
-			defer res.Body.Close()
+			defer func() {
+				require.NoError(t, res.Body.Close())
+			}()
 
 			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
 			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
@@ -384,7 +392,9 @@ func TestCompression(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
-		defer resp.Body.Close()
+		defer func() {
+			require.NoError(t, resp.Body.Close())
+		}()
 
 		_, err = io.ReadAll(resp.Body)
 		require.NoError(t, err)

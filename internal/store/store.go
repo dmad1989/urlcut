@@ -119,7 +119,10 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 		if short != "" {
 			batch[i].ShortURL = short
 		} else {
-			s.Add(ctx, batch[i].OriginalURL, batch[i].ShortURL)
+			err = s.Add(ctx, batch[i].OriginalURL, batch[i].ShortURL)
+			if err != nil {
+				return batch, fmt.Errorf("UploadBatch: store add: %w", err)
+			}
 		}
 		batch[i].OriginalURL = ""
 	}
@@ -210,7 +213,12 @@ func writeItem(fname string, i jsonobject.Item) error {
 	if err != nil {
 		return fmt.Errorf("writeItem: open file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		err = file.Close()
+		if err != nil {
+			logging.Log.Fatalf("file.Close() in writeItem: %w", err)
+		}
+	}()
 	data = append(data, '\n')
 	_, err = file.Write(data)
 	if err != nil {
@@ -222,7 +230,12 @@ func writeItem(fname string, i jsonobject.Item) error {
 // createIfNeeded находит файл с именем fileName по пути path.
 // если файл или путь не найдены - создаст их.
 func createIfNeeded(path string, fileName string) error {
-	defer logging.Log.Sync()
+	defer func() {
+		err := logging.Log.Sync()
+		if err != nil {
+			logging.Log.Fatalf("log.sync in createIfNeeded: %w", err)
+		}
+	}()
 	err := os.MkdirAll(path, 0750)
 	if err != nil {
 		return fmt.Errorf("mkdir: %w", err)

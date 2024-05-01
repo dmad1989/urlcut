@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fatih/errwrap/errwrap"
+	"github.com/kisielk/errcheck/errcheck"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
 	"golang.org/x/tools/go/analysis/passes/asmdecl"
@@ -106,6 +107,7 @@ func main() {
 		unusedresult.Analyzer,
 		unusedwrite.Analyzer,
 		errwrap.Analyzer,
+		errcheck.Analyzer,
 		ExitCheckAnalyzer,
 	}
 	cfg := confidData()

@@ -19,7 +19,11 @@ func ExampleServer_cutterHandler() {
 	// 201 - Сокращен успешно
 	// 400 - ошибка
 	fmt.Println(res.Status)
-	res.Body.Close()
+	err = res.Body.Close()
+	//Обрабатываем ошибку
+	if err != nil {
+		fmt.Println(fmt.Errorf("response close: %w", err))
+	}
 	res, err = s.Client().Post(s.URL, "text/plain", strings.NewReader("qwerty12345"))
 	//Обрабатываем ошибку
 	if err != nil {
@@ -28,8 +32,11 @@ func ExampleServer_cutterHandler() {
 	// 201 - Сокращен успешно
 	// 400 - ошибка
 	fmt.Println(res.Status)
-	res.Body.Close()
-
+	err = res.Body.Close()
+	// Обрабатываем ошибку
+	if err != nil {
+		fmt.Println(fmt.Errorf("response close: %w", err))
+	}
 	// Output:
 	// 201 Created
 	// 400 Bad Request
@@ -45,7 +52,13 @@ func ExampleServer_redirectHandler() {
 	if err != nil {
 		fmt.Println(fmt.Errorf("in request: %w", err))
 	}
-	defer res.Body.Close()
+	defer func() {
+		err = res.Body.Close()
+		//Обрабатываем ошибку
+		if err != nil {
+			fmt.Println(fmt.Errorf("response close: %w", err))
+		}
+	}()
 	// 307 Переход по сокращенному URL
 	// 401  Ошибка авторизации
 	// 410 URL Удален

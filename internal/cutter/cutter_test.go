@@ -13,6 +13,7 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/dmad1989/urlcut/internal/mocks"
 )
 
@@ -195,7 +196,10 @@ func BenchmarkUploadBatch(b *testing.B) {
 	}
 	// b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		a.UploadBatch(context.TODO(), batch)
+		_, err := a.UploadBatch(context.TODO(), batch)
+		if err != nil {
+			logging.Log.Infof("BenchmarkUploadBatch: UploadBatch %w", err)
+		}
 	}
 }
 
@@ -221,7 +225,10 @@ func BenchmarkCut(b *testing.B) {
 	a := New(m)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		a.Cut(context.TODO(), "someurl")
+		_, err := a.Cut(context.TODO(), "someurl")
+		if err != nil {
+			logging.Log.Infof("benchmarkCut: cut^ %w", err)
+		}
 	}
 }
 
