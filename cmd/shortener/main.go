@@ -29,7 +29,7 @@ func main() {
 	}
 	defer func() {
 		err = logging.Log.Sync()
-		if err == nil {
+		if err != nil {
 			logging.Log.Fatalf("log.sync in main: %w", err)
 		}
 	}()
@@ -42,7 +42,7 @@ func main() {
 	}
 	defer func() {
 		err = storage.CloseDB()
-		if err == nil {
+		if err != nil {
 			logging.Log.Fatalf("storage.CloseDB in main: %w", err)
 		}
 	}()
