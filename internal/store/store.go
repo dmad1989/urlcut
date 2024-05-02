@@ -230,12 +230,7 @@ func writeItem(fname string, i jsonobject.Item) error {
 // createIfNeeded находит файл с именем fileName по пути path.
 // если файл или путь не найдены - создаст их.
 func createIfNeeded(path string, fileName string) error {
-	defer func() {
-		err := logging.Log.Sync()
-		if err != nil {
-			logging.Log.Fatalf("log.sync in createIfNeeded: %w", err)
-		}
-	}()
+	defer logging.Log.Sync()
 	err := os.MkdirAll(path, 0750)
 	if err != nil {
 		return fmt.Errorf("mkdir: %w", err)

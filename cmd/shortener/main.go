@@ -27,12 +27,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer func() {
-		err = logging.Log.Sync()
-		if err != nil {
-			logging.Log.Fatalf("log.sync in main: %w", err)
-		}
-	}()
+	defer logging.Log.Sync()
 
 	conf := config.ParseConfig()
 

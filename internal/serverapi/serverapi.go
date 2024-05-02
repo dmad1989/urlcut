@@ -79,12 +79,7 @@ func New(cutter ICutter, config Configer) *Server {
 // В другой горутине ожидает сигнала от контекста о завершении, чтобы отключить сервер.
 // Пишет ошибку в консоль, о причине выключения.
 func (s Server) Run(ctx context.Context) error {
-	defer func() {
-		err := logging.Log.Sync()
-		if err != nil {
-			logging.Log.Fatalf("log.sync in run: %w", err)
-		}
-	}()
+	defer logging.Log.Sync()
 	logging.Log.Infof("Server started at %s", s.config.GetURL())
 	httpServer := &http.Server{
 		Addr:    s.config.GetURL(),
