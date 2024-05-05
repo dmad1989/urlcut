@@ -227,6 +227,7 @@ func (s Server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 // @Router /{path} [get]
 func (s Server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	path := chi.URLParam(req, "path")
+	fmt.Println(path)
 	if path == "" {
 		responseError(res, fmt.Errorf("redirectHandler: url path is empty"))
 		return
@@ -294,7 +295,6 @@ func (s Server) cutterJSONBatchHandler(res http.ResponseWriter, req *http.Reques
 	}
 	logging.Log.Info(batchRequest)
 	batchResponse, err := s.cutter.UploadBatch(req.Context(), batchRequest)
-
 	if err != nil {
 		responseError(res, fmt.Errorf("JSONBatchHandler: getting code for url: %w", err))
 		return

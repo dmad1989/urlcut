@@ -183,10 +183,99 @@ func TestCheckUrls(t *testing.T) {
 	defer goleak.VerifyNone(t)
 }
 
+func TestRandStringBytes(t *testing.T) {
+	tests := []struct {
+		errorExpected error
+		name          string
+		isErrorRes    bool
+		n             int
+	}{{
+		name:          "negative: n<0",
+		n:             -1,
+		isErrorRes:    true,
+		errorExpected: errorRandStringParamN,
+	}, {
+		name:          "negative: n==0",
+		n:             0,
+		isErrorRes:    true,
+		errorExpected: errorRandStringParamN,
+	},
+		{
+			name:          "positive: n>0",
+			n:             5,
+			isErrorRes:    false,
+			errorExpected: nil,
+		}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := randStringBytes(tt.n)
+
+			if tt.isErrorRes {
+				assert.NotEmpty(t, err)
+				assert.ErrorIs(t, err, tt.errorExpected)
+				assert.Empty(t, s)
+				return
+			}
+			assert.Empty(t, err)
+			assert.NotEmpty(t, s)
+
+		})
+	}
+}
+
+func TestUploadBatch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	m := mocks.NewMockStore(ctrl)
+	batch := prepareBatch(10)
+	tests := []struct {
+		name             string
+		storeUploadError error
+		batch            jsonobject.Batch
+	}{{
+		name:             "negative: store error",
+		batch:            batch,
+		storeUploadError: errors.New("random"),
+	},
+		{
+			name:             "positive",
+			batch:            batch,
+			storeUploadError: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(tt.batch, tt.storeUploadError).MaxTimes(1)
+			app := New(m)
+			res, err := app.UploadBatch(context.TODO(), tt.batch)
+
+			if tt.storeUploadError != nil {
+				assert.NotEmpty(t, err)
+				assert.ErrorAs(t, err, &tt.storeUploadError)
+				return
+			}
+			assert.Empty(t, err)
+			assert.NotEmpty(t, res)
+
+		})
+	}
+}
+func prepareBatch(size int) jsonobject.Batch {
+	batch := make(jsonobject.Batch, 0, size)
+	for i := 0; i < size; i++ {
+		str, err := randStringBytes(i + 1)
+		if err != nil {
+			panic("randStringBytes out of control")
+		}
+		batch = append(batch, jsonobject.BatchItem{ID: str, OriginalURL: str})
+	}
+	return batch
+}
 func BenchmarkUploadBatch(b *testing.B) {
 	m := EmptyStore{}
 	a := New(m)
-	batch := make(jsonobject.Batch, 0, 200)
+	batch := prepareBatch(200)
 	for i := 0; i < 200; i++ {
 		str, err := randStringBytes(i)
 		if err != nil {

@@ -18,6 +18,8 @@ import (
 
 const batchSize = 100
 
+var errorRandStringParamN = errors.New("randStringBytes: param n must be more then 0")
+
 // Store интерфейс слоя хранилища.
 type Store interface {
 	GetShortURL(ctx context.Context, key string) (string, error)
@@ -172,6 +174,9 @@ func (ue *UniqueURLError) Unwrap() error {
 
 // randStringBytes генерирует рандомную строку длины n.
 func randStringBytes(n int) (string, error) {
+	if n <= 0 {
+		return "", errorRandStringParamN
+	}
 	b := make([]byte, n)
 	_, err := rand.Read(b)
 	if err != nil {
