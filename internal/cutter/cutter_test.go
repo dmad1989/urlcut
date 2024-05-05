@@ -277,7 +277,7 @@ func BenchmarkUploadBatch(b *testing.B) {
 	a := New(m)
 	batch := prepareBatch(200)
 	for i := 0; i < 200; i++ {
-		str, err := randStringBytes(i)
+		str, err := randStringBytes(i + 1)
 		if err != nil {
 			panic("randStringBytes out of control")
 		}

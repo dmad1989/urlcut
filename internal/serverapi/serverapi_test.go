@@ -420,10 +420,10 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 	serv, testserver := initEnv()
 	defer testserver.Close()
 	type mockParams struct {
-		uploadError       error
-		shortAddressTimes int
-		shortAddress      string
-		uploadResult      jsonobject.Batch
+		//shortAddressTimes int
+		shortAddress string
+		uploadError  error
+		uploadResult jsonobject.Batch
 	}
 	tests := []struct {
 		name    string
@@ -441,10 +441,9 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 				code:        http.StatusBadRequest,
 				bodyMessage: "JSONBatchHandler: content-type have to be application/json"},
 			mock: mockParams{
-				shortAddress:      serv.config.GetShortAddress()[7:],
-				shortAddressTimes: 0,
-				uploadResult:      jsonobject.Batch{},
-				uploadError:       nil},
+				shortAddress: serv.config.GetShortAddress()[7:],
+				uploadResult: jsonobject.Batch{},
+				uploadError:  nil},
 		},
 		{
 			name: "negative - empty Body",
@@ -456,10 +455,9 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 				code:        http.StatusBadRequest,
 				bodyMessage: "JSONBatchHandler: decoding request: EOF"},
 			mock: mockParams{
-				shortAddress:      serv.config.GetShortAddress()[7:],
-				shortAddressTimes: 0,
-				uploadResult:      jsonobject.Batch{},
-				uploadError:       nil},
+				shortAddress: serv.config.GetShortAddress()[7:],
+				uploadResult: jsonobject.Batch{},
+				uploadError:  nil},
 		},
 		{
 			name: "negative - error from cutter",
@@ -475,10 +473,9 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 				code:        http.StatusBadRequest,
 				bodyMessage: "JSONBatchHandler: getting code for url: from cutter"},
 			mock: mockParams{
-				shortAddress:      serv.config.GetShortAddress()[7:],
-				shortAddressTimes: 0,
-				uploadResult:      jsonobject.Batch{},
-				uploadError:       errors.New("from cutter")},
+				shortAddress: serv.config.GetShortAddress()[7:],
+				uploadResult: jsonobject.Batch{},
+				uploadError:  errors.New("from cutter")},
 		},
 		{
 			name: "positive",
@@ -499,10 +496,9 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 						
 					}]`},
 			mock: mockParams{
-				shortAddress:      serv.config.GetShortAddress()[7:],
-				shortAddressTimes: 1,
-				uploadResult:      jsonobject.Batch{jsonobject.BatchItem{ID: "1", OriginalURL: "", ShortURL: "tt"}},
-				uploadError:       nil},
+				shortAddress: serv.config.GetShortAddress()[7:],
+				uploadResult: jsonobject.Batch{jsonobject.BatchItem{ID: "1", OriginalURL: "", ShortURL: "tt"}},
+				uploadError:  nil},
 		},
 	}
 
@@ -511,7 +507,7 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 			//init mocks
 			a := mocks.NewMockApp(ctrl)
 			c := mocks.NewMockConf(ctrl)
-			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(tt.mock.shortAddressTimes)
+			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(1)
 			a.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(tt.mock.uploadResult, tt.mock.uploadError).MaxTimes(1)
 			fmt.Printf("name: %s, mockederr: %t", tt.name, tt.mock.uploadError == nil)
 			fmt.Println()
