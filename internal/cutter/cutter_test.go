@@ -264,7 +264,7 @@ func TestUploadBatch(t *testing.T) {
 func prepareBatch(size int) jsonobject.Batch {
 	batch := make(jsonobject.Batch, 0, size)
 	for i := 0; i < size; i++ {
-		str, err := randStringBytes(i + 1)
+		str, err := randStringBytes(8)
 		if err != nil {
 			panic("randStringBytes out of control")
 		}
@@ -276,13 +276,6 @@ func BenchmarkUploadBatch(b *testing.B) {
 	m := EmptyStore{}
 	a := New(m)
 	batch := prepareBatch(200)
-	for i := 0; i < 200; i++ {
-		str, err := randStringBytes(i + 1)
-		if err != nil {
-			panic("randStringBytes out of control")
-		}
-		batch = append(batch, jsonobject.BatchItem{ID: str, OriginalURL: str})
-	}
 	// b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := a.UploadBatch(context.TODO(), batch)
@@ -297,7 +290,7 @@ func BenchmarkDeleteUrls(b *testing.B) {
 	a := New(m)
 	ids := make(jsonobject.ShortIds, 0, 200)
 	for i := 0; i < 200; i++ {
-		str, err := randStringBytes(i)
+		str, err := randStringBytes(8)
 		if err != nil {
 			panic("randStringBytes out of control")
 		}
