@@ -227,7 +227,6 @@ func (s Server) cutterHandler(res http.ResponseWriter, req *http.Request) {
 // @Router /{path} [get]
 func (s Server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 	path := chi.URLParam(req, "path")
-	fmt.Println(path)
 	if path == "" {
 		responseError(res, fmt.Errorf("redirectHandler: url path is empty"))
 		return

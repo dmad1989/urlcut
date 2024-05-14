@@ -1,9 +1,8 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/fatih/errwrap/errwrap"
@@ -52,17 +51,18 @@ import (
 	"honnef.co/go/tools/staticcheck"
 )
 
-const configFile = "config.json"
+//go:embed config.json
+var config []byte
 
 // ConfigData is struct representing checks from config.json.
 type ConfigData struct {
-	Staticcheck Staticcheck
+	Staticcheck Staticcheck `json:"staticcheck"`
 }
 
 // Staticcheck is struct representing checks from config.json.
 type Staticcheck struct {
-	groups []string
-	checks []string
+	Groups []string `json:"groups"`
+	Checks []string `json:"checks"`
 }
 
 func main() {
@@ -110,19 +110,22 @@ func main() {
 		errcheck.Analyzer,
 		ExitCheckAnalyzer,
 	}
-	cfg := confidData()
+	var cfg ConfigData
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		panic(err)
+	}
 
 analyzersLoop:
 	for _, v := range staticcheck.Analyzers {
 		// add groups of linters
-		for _, g := range cfg.Staticcheck.groups {
+		for _, g := range cfg.Staticcheck.Groups {
 			if strings.HasPrefix(v.Analyzer.Name, g) {
 				mychecks = append(mychecks, v.Analyzer)
 				continue analyzersLoop
 			}
 		}
 		// add  linter by name
-		for _, c := range cfg.Staticcheck.checks {
+		for _, c := range cfg.Staticcheck.Checks {
 			if v.Analyzer.Name == c {
 				mychecks = append(mychecks, v.Analyzer)
 				continue analyzersLoop
@@ -130,21 +133,4 @@ analyzersLoop:
 		}
 	}
 	multichecker.Main(mychecks...)
-
-}
-
-func confidData() (cfg ConfigData) {
-	appfile, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	data, err := os.ReadFile(filepath.Join(filepath.Dir(appfile), configFile))
-	if err != nil {
-		panic(err)
-	}
-	// var cfg ConfigData
-	if err = json.Unmarshal(data, &cfg); err != nil {
-		panic(err)
-	}
-	return
 }
