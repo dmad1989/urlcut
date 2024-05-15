@@ -63,6 +63,9 @@ func (c TestConfig) GetUserContextKey() config.ContextKey {
 	return config.ContextKey{}
 }
 
+func (c TestConfig) GetEnableHTTPS() bool {
+	return false
+}
 func initEnv() (serv *Server, testserver *httptest.Server) {
 	tconf = &TestConfig{
 		url:           ":8080",
@@ -505,8 +508,8 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			//init mocks
-			a := mocks.NewMockApp(ctrl)
-			c := mocks.NewMockConf(ctrl)
+			a := mocks.NewMockICutter(ctrl)
+			c := mocks.NewMockConfiger(ctrl)
 			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(1)
 			a.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(tt.mock.uploadResult, tt.mock.uploadError).MaxTimes(1)
 			fmt.Printf("name: %s, mockederr: %t", tt.name, tt.mock.uploadError == nil)
@@ -536,8 +539,8 @@ func BenchmarkCutterJSONHandler(b *testing.B) {
 	b.StopTimer()
 	ctrl := gomock.NewController(b)
 	defer ctrl.Finish()
-	a := mocks.NewMockApp(ctrl)
-	c := mocks.NewMockConf(ctrl)
+	a := mocks.NewMockICutter(ctrl)
+	c := mocks.NewMockConfiger(ctrl)
 	s := New(a, c)
 	a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return("returnString", nil).AnyTimes()
 	_, testserver := initEnv()
@@ -552,8 +555,8 @@ func BenchmarkCutterHandler(b *testing.B) {
 	b.StopTimer()
 	ctrl := gomock.NewController(b)
 	defer ctrl.Finish()
-	a := mocks.NewMockApp(ctrl)
-	c := mocks.NewMockConf(ctrl)
+	a := mocks.NewMockICutter(ctrl)
+	c := mocks.NewMockConfiger(ctrl)
 	s := New(a, c)
 	_, testserver := initEnv()
 	defer testserver.Close()
@@ -569,8 +572,8 @@ func BenchmarkCutterJSONBatchHandler(b *testing.B) {
 	b.StopTimer()
 	ctrl := gomock.NewController(b)
 	defer ctrl.Finish()
-	a := mocks.NewMockApp(ctrl)
-	c := mocks.NewMockConf(ctrl)
+	a := mocks.NewMockICutter(ctrl)
+	c := mocks.NewMockConfiger(ctrl)
 	s := New(a, c)
 	_, testserver := initEnv()
 	defer testserver.Close()
@@ -595,8 +598,8 @@ func BenchmarkUserUrlsHandler(b *testing.B) {
 	b.StopTimer()
 	ctrl := gomock.NewController(b)
 	defer ctrl.Finish()
-	a := mocks.NewMockApp(ctrl)
-	c := mocks.NewMockConf(ctrl)
+	a := mocks.NewMockICutter(ctrl)
+	c := mocks.NewMockConfiger(ctrl)
 	s := New(a, c)
 	_, testserver := initEnv()
 	defer testserver.Close()
@@ -621,8 +624,8 @@ func BenchmarkDeleteUserUrlsHandler(b *testing.B) {
 	b.StopTimer()
 	ctrl := gomock.NewController(b)
 	defer ctrl.Finish()
-	a := mocks.NewMockApp(ctrl)
-	c := mocks.NewMockConf(ctrl)
+	a := mocks.NewMockICutter(ctrl)
+	c := mocks.NewMockConfiger(ctrl)
 	s := New(a, c)
 	_, testserver := initEnv()
 	defer testserver.Close()
