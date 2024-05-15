@@ -79,7 +79,7 @@ func ParseConfig() Config {
 		conf.enableHTTPS = b
 	}
 
-	logging.Log.Infow("starting config ",
+	logging.Log.Debugw("starting config ",
 		zap.String("URL", conf.url),
 		zap.String("shortAddress", conf.shortAddress),
 		zap.String("fileStoreName", conf.fileStoreName),
@@ -108,6 +108,7 @@ func (c Config) GetDBConnName() string {
 	return c.dbConnName
 }
 
+// GetEnableHTTPS - запустить https-сервер
 func (c Config) GetEnableHTTPS() bool {
 	return c.enableHTTPS
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// CreateCert - создает сертифкат и ключ. Сохраняет в файлы корневой папке проетка.
 func CreateCert(certPath, keyPath string) error {
 	// создаём шаблон сертификата
 	cert := &x509.Certificate{
