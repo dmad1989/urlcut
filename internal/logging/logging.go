@@ -1,4 +1,4 @@
-// Модуль logging инициализирует логирование работы сервиса.
+// Package logging инициализирует логирование работы сервиса.
 package logging
 
 import (
@@ -73,6 +73,7 @@ func WithLog(h http.Handler) http.Handler {
 			responseData:   responseData,
 		}
 		defer Log.Sync()
+
 		h.ServeHTTP(&lw, r)
 		duration := time.Since(start)
 		Log.Infow("Response",

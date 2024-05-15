@@ -13,6 +13,7 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/dmad1989/urlcut/internal/mocks"
 )
 
@@ -25,8 +26,8 @@ func TestCut(t *testing.T) {
 	}
 	type mockParams struct {
 		addErrReturn error
-		getURLReturn string
 		getErrReturn error
+		getURLReturn string
 		getTimes     int
 	}
 	type expected struct {
@@ -128,10 +129,10 @@ func TestCheckUrls(t *testing.T) {
 	m := mocks.NewMockStore(ctrl)
 
 	tests := []struct {
+		dbError  error
 		name     string
 		inputSl  []string
 		maxTimes int
-		dbError  error
 	}{{
 		name:     "10els",
 		inputSl:  make([]string, 10),
@@ -182,20 +183,105 @@ func TestCheckUrls(t *testing.T) {
 	defer goleak.VerifyNone(t)
 }
 
-func BenchmarkUploadBatch(b *testing.B) {
-	m := EmptyStore{}
-	a := New(m)
-	batch := make(jsonobject.Batch, 0, 200)
-	for i := 0; i < 200; i++ {
-		str, err := randStringBytes(i)
+func TestRandStringBytes(t *testing.T) {
+	tests := []struct {
+		errorExpected error
+		name          string
+		isErrorRes    bool
+		n             int
+	}{{
+		name:          "negative: n<0",
+		n:             -1,
+		isErrorRes:    true,
+		errorExpected: errorRandStringParamN,
+	}, {
+		name:          "negative: n==0",
+		n:             0,
+		isErrorRes:    true,
+		errorExpected: errorRandStringParamN,
+	},
+		{
+			name:          "positive: n>0",
+			n:             5,
+			isErrorRes:    false,
+			errorExpected: nil,
+		}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := randStringBytes(tt.n)
+
+			if tt.isErrorRes {
+				assert.NotEmpty(t, err)
+				assert.ErrorIs(t, err, tt.errorExpected)
+				assert.Empty(t, s)
+				return
+			}
+			assert.Empty(t, err)
+			assert.NotEmpty(t, s)
+
+		})
+	}
+}
+
+func TestUploadBatch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	m := mocks.NewMockStore(ctrl)
+	batch := prepareBatch(10)
+	tests := []struct {
+		name             string
+		storeUploadError error
+		batch            jsonobject.Batch
+	}{{
+		name:             "negative: store error",
+		batch:            batch,
+		storeUploadError: errors.New("random"),
+	},
+		{
+			name:             "positive",
+			batch:            batch,
+			storeUploadError: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(tt.batch, tt.storeUploadError).MaxTimes(1)
+			app := New(m)
+			res, err := app.UploadBatch(context.TODO(), tt.batch)
+
+			if tt.storeUploadError != nil {
+				assert.NotEmpty(t, err)
+				assert.ErrorAs(t, err, &tt.storeUploadError)
+				return
+			}
+			assert.Empty(t, err)
+			assert.NotEmpty(t, res)
+
+		})
+	}
+}
+func prepareBatch(size int) jsonobject.Batch {
+	batch := make(jsonobject.Batch, 0, size)
+	for i := 0; i < size; i++ {
+		str, err := randStringBytes(8)
 		if err != nil {
 			panic("randStringBytes out of control")
 		}
 		batch = append(batch, jsonobject.BatchItem{ID: str, OriginalURL: str})
 	}
+	return batch
+}
+func BenchmarkUploadBatch(b *testing.B) {
+	m := EmptyStore{}
+	a := New(m)
+	batch := prepareBatch(200)
 	// b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		a.UploadBatch(context.TODO(), batch)
+		_, err := a.UploadBatch(context.TODO(), batch)
+		if err != nil {
+			logging.Log.Infof("BenchmarkUploadBatch: UploadBatch %w", err)
+		}
 	}
 }
 
@@ -204,7 +290,7 @@ func BenchmarkDeleteUrls(b *testing.B) {
 	a := New(m)
 	ids := make(jsonobject.ShortIds, 0, 200)
 	for i := 0; i < 200; i++ {
-		str, err := randStringBytes(i)
+		str, err := randStringBytes(8)
 		if err != nil {
 			panic("randStringBytes out of control")
 		}
@@ -221,7 +307,10 @@ func BenchmarkCut(b *testing.B) {
 	a := New(m)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		a.Cut(context.TODO(), "someurl")
+		_, err := a.Cut(context.TODO(), "someurl")
+		if err != nil {
+			logging.Log.Infof("benchmarkCut: cut^ %w", err)
+		}
 	}
 }
 

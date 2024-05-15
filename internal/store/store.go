@@ -1,4 +1,4 @@
-// Модуль store содержит методы для работы с хранилищем - файлом.
+// Package store содержит методы для работы с хранилищем - файлом.
 package store
 
 import (
@@ -21,10 +21,10 @@ type configer interface {
 }
 
 type storage struct {
-	rw        sync.RWMutex
 	urlMap    map[string]string
 	revertMap map[string]string
 	fileName  string
+	rw        sync.RWMutex
 }
 
 // New находит или создает файл, инициализирует Map - для хранения.
@@ -119,7 +119,10 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 		if short != "" {
 			batch[i].ShortURL = short
 		} else {
-			s.Add(ctx, batch[i].OriginalURL, batch[i].ShortURL)
+			err = s.Add(ctx, batch[i].OriginalURL, batch[i].ShortURL)
+			if err != nil {
+				return batch, fmt.Errorf("UploadBatch: store add: %w", err)
+			}
 		}
 		batch[i].OriginalURL = ""
 	}
@@ -194,7 +197,7 @@ func (c *Consumer) ReadItems() ([]jsonobject.Item, error) {
 		items = append(items, item)
 	}
 	if err := c.scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scan file error: %v", err)
+		return nil, fmt.Errorf("scan file error: %w", err)
 	}
 	return items, nil
 }
@@ -210,7 +213,12 @@ func writeItem(fname string, i jsonobject.Item) error {
 	if err != nil {
 		return fmt.Errorf("writeItem: open file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		err = file.Close()
+		if err != nil {
+			logging.Log.Fatalf("file.Close() in writeItem: %w", err)
+		}
+	}()
 	data = append(data, '\n')
 	_, err = file.Write(data)
 	if err != nil {
@@ -233,15 +241,15 @@ func createIfNeeded(path string, fileName string) error {
 		return fmt.Errorf("chdir: %w", err)
 	}
 
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		file, err := os.Create(fileName)
-		if err1 := file.Close(); err1 != nil && err == nil {
-			err = fmt.Errorf("create file: %w", err1)
+	if _, err = os.Stat(fileName); os.IsNotExist(err) {
+		file, errCreate := os.Create(fileName)
+		if err1 := file.Close(); err1 != nil && errCreate == nil {
+			errCreate = fmt.Errorf("create file: %w", err1)
 		}
-		if err == nil {
+		if errCreate == nil {
 			logging.Log.Debugf("file was created: %s (path %s)", fileName, path)
 		}
-		return err
+		return errCreate
 	} else {
 		logging.Log.Debugf("file was found: %s (path %s)", fileName, path)
 	}

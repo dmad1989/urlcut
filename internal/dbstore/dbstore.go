@@ -1,4 +1,4 @@
-// Модуль dbstore содержит методы для работы с хранилищем - БД.
+// Package dbstore содержит методы для работы с хранилищем - БД.
 // Использует github.com/pressly/goose/v3 для sql миграций, стандартный database/sql с github.com/jackc/pgx/v5 в качестве драйвера.
 package dbstore
 
@@ -173,7 +173,6 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 	if err != nil {
 		return batch, fmt.Errorf("upload batch, transation begin: %w", err)
 	}
-	defer tx.Commit()
 
 	stmtInsert, err := tx.PrepareContext(tctx, sqlInsert)
 	if err != nil {
@@ -187,7 +186,7 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 	defer stmtCheck.Close()
 	for i := 0; i < len(batch); i++ {
 		var dbOriginalURL string
-		err := stmtCheck.QueryRowContext(tctx, batch[i].OriginalURL).Scan(&dbOriginalURL)
+		err = stmtCheck.QueryRowContext(tctx, batch[i].OriginalURL).Scan(&dbOriginalURL)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			if _, err = stmtInsert.ExecContext(tctx, batch[i].ShortURL, batch[i].OriginalURL, userID); err != nil {
@@ -195,12 +194,20 @@ func (s *storage) UploadBatch(ctx context.Context, batch jsonobject.Batch) (json
 				return batch, fmt.Errorf("batch insert: %w", err)
 			}
 		case err != nil:
-			tx.Rollback()
+			errRol := tx.Rollback()
+			if errRol != nil {
+				return batch, errors.Join(err, errRol)
+			}
 			return batch, fmt.Errorf("batch check: %w", err)
 		default:
 			batch[i].ShortURL = dbOriginalURL
 		}
 		batch[i].OriginalURL = ""
+	}
+
+	if err = tx.Commit(); err != nil {
+		tx.Rollback()
+		return batch, fmt.Errorf("UploadBatch, commit: %w", err)
 	}
 	return batch, nil
 }

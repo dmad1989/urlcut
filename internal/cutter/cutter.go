@@ -1,4 +1,4 @@
-// Сutter - это модуль с бизнес логикой сервиса.
+// Package cutter - модуль с бизнес логикой сервиса.
 package cutter
 
 import (
@@ -17,6 +17,8 @@ import (
 )
 
 const batchSize = 100
+
+var errorRandStringParamN = errors.New("randStringBytes: param n must be more then 0")
 
 // Store интерфейс слоя хранилища.
 type Store interface {
@@ -148,8 +150,8 @@ func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 // UniqueURLError ошибка уникальности URL.
 // Используется для отделения данного типа ошибок от других, по требованиям бизнес логики.
 type UniqueURLError struct {
-	Code string
 	Err  error
+	Code string
 }
 
 // Error реализует интерфейс error для UniqueURLError.
@@ -172,6 +174,9 @@ func (ue *UniqueURLError) Unwrap() error {
 
 // randStringBytes генерирует рандомную строку длины n.
 func randStringBytes(n int) (string, error) {
+	if n <= 0 {
+		return "", errorRandStringParamN
+	}
 	b := make([]byte, n)
 	_, err := rand.Read(b)
 	if err != nil {

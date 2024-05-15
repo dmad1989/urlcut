@@ -2,6 +2,11 @@
 // запускает создание контекста, инициализацию слоев приложения, сервер.
 // Хранилище может быть двух типов: БД Postgres или json-файл.
 // Тип зависит от конфигурации при вызове. См описание пакета Config
+//
+// Для отображения информации о приложении при запуске нужно  указывать -ldflags:
+// Build: -X 'main.buildVersion=${git describe --tags}'
+// Commit: -X 'main.buildCommit=$(git rev-parse HEAD)'
+// Date: -X 'main.buildDate=$(git show -s --format=%ai)'
 package main
 
 import (
@@ -21,20 +26,36 @@ import (
 	"github.com/dmad1989/urlcut/internal/store"
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
 func main() {
+	fmt.Printf("Build version: %s\n", checkEmptyParam(buildVersion))
+	fmt.Printf("Build date: %s\n", checkEmptyParam(buildDate))
+	fmt.Printf("Build commit: %s\n", checkEmptyParam(buildCommit))
+
 	ctx := context.Background()
 	err := logging.Initilize()
 	if err != nil {
 		panic(err)
 	}
 	defer logging.Log.Sync()
+
 	conf := config.ParseConfig()
 
 	storage, err := initStore(ctx, conf)
 	if err != nil {
 		logging.Log.Fatalf("initStore: %w", err)
 	}
-	defer storage.CloseDB()
+	defer func() {
+		err = storage.CloseDB()
+		if err != nil {
+			logging.Log.Fatalf("storage.CloseDB in main: %w", err)
+		}
+	}()
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -61,4 +82,11 @@ func initStore(ctx context.Context, conf config.Config) (storage cutter.Store, e
 		return nil, fmt.Errorf("store: %w", err)
 	}
 	return
+}
+
+func checkEmptyParam(param string) string {
+	if param == "" {
+		return "N/A"
+	}
+	return param
 }

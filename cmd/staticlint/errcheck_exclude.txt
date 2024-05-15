@@ -1,0 +1,4 @@
+(net/http.ResponseWriter).Write
+(*database/sql.Stmt).Close
+(*database/sql.Tx).Rollback
+(*go.uber.org/zap.SugaredLogger).Sync

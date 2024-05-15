@@ -1,10 +1,12 @@
+// Package jsonobject contain dto for json.
+// Objects processed to json using easyjson.
 package jsonobject
 
 //easyjson:json
 type Item struct {
-	ID          int    `json:"uuid"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
+	ID          int    `json:"uuid"`
 }
 
 // Batch содержит список из URL
