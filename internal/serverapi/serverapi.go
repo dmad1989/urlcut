@@ -59,6 +59,7 @@ type ICutter interface {
 type Configer interface {
 	GetURL() string
 	GetShortAddress() string
+	GetEnableHTTPS() bool
 }
 
 // Server содержит интерфейсы для обращения к другим слоям и роутинг.
@@ -88,14 +89,26 @@ func (s Server) Run(ctx context.Context) error {
 			return ctx
 		},
 	}
-	g, gCtx := errgroup.WithContext(ctx)
-	g.Go(func() error {
+
+	httpFunc := func() error {
 		err := httpServer.ListenAndServe()
 		if err != nil {
 			return fmt.Errorf("serverapi.Run: %w", err)
 		}
 		return nil
+	}
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) {
+
+		if s.config.GetEnableHTTPS() {
+
+		} else {
+			err = httpFunc()
+		}
+		return
 	})
+
 	g.Go(func() error {
 		<-gCtx.Done()
 		return httpServer.Shutdown(context.Background())

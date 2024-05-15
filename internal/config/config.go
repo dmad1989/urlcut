@@ -6,6 +6,7 @@ package config
 import (
 	"flag"
 	"os"
+	"strconv"
 
 	"go.uber.org/zap"
 
@@ -39,6 +40,7 @@ type Config struct {
 	shortAddress  string
 	fileStoreName string
 	dbConnName    string
+	enableHTTPS   bool
 }
 
 // Инициализация конфигурации значениями флага или по умолчанию.
@@ -47,6 +49,7 @@ func init() {
 	flag.StringVar(&conf.shortAddress, "b", defShortHost, "Address for short url")
 	flag.StringVar(&conf.fileStoreName, "f", "", "file name for storage")
 	flag.StringVar(&conf.dbConnName, "d", "", "database connection addres, format host=? port=? user=? password=? dbname=? sslmode=?")
+	flag.BoolVar(&conf.enableHTTPS, "s", false, "true for htts server start")
 }
 
 // ParseConfig - запускает парсинг флагов и анализирует переменные окружения.
@@ -68,11 +71,20 @@ func ParseConfig() Config {
 		conf.dbConnName = os.Getenv("DATABASE_DSN")
 	}
 
+	if os.Getenv("ENABLE_HTTPS") != "" {
+		b, err := strconv.ParseBool(os.Getenv("ENABLE_HTTPS"))
+		if err != nil {
+			logging.Log.Errorw("fails to read ENABLE_HTTPS", zap.Error(err))
+		}
+		conf.enableHTTPS = b
+	}
+
 	logging.Log.Debugw("starting config ",
 		zap.String("URL", conf.url),
 		zap.String("shortAddress", conf.shortAddress),
 		zap.String("fileStoreName", conf.fileStoreName),
-		zap.String("dbConnName", conf.dbConnName))
+		zap.String("dbConnName", conf.dbConnName),
+		zap.Bool("ENABLE_HTTPS", conf.enableHTTPS))
 	return conf
 }
 
@@ -94,4 +106,8 @@ func (c Config) GetFileStoreName() string {
 // GetDBConnName - получить DSN к DB
 func (c Config) GetDBConnName() string {
 	return c.dbConnName
+}
+
+func (c Config) GetEnableHTTPS() bool {
+	return c.enableHTTPS
 }
