@@ -90,21 +90,32 @@ func (s Server) Run(ctx context.Context) error {
 		},
 	}
 
-	httpFunc := func() error {
+	httpServ := func() error {
 		err := httpServer.ListenAndServe()
 		if err != nil {
 			return fmt.Errorf("serverapi.Run: %w", err)
 		}
 		return nil
 	}
+	httpsServ := func() (err error) {
+		const (
+			cert = "cert.pem"
+			key  = "key.pem"
+		)
+		err = CreateCert(cert, key)
+		if err != nil {
+			return fmt.Errorf("create cert: %w ", err)
+		}
+		err = httpServer.ListenAndServeTLS(cert, key)
+		return fmt.Errorf("https serv start: %w ", err)
+	}
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) {
-
 		if s.config.GetEnableHTTPS() {
-
+			err = httpsServ()
 		} else {
-			err = httpFunc()
+			err = httpServ()
 		}
 		return
 	})

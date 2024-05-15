@@ -79,7 +79,7 @@ func ParseConfig() Config {
 		conf.enableHTTPS = b
 	}
 
-	logging.Log.Debugw("starting config ",
+	logging.Log.Infow("starting config ",
 		zap.String("URL", conf.url),
 		zap.String("shortAddress", conf.shortAddress),
 		zap.String("fileStoreName", conf.fileStoreName),
