@@ -44,7 +44,10 @@ func main() {
 	}
 	defer logging.Log.Sync()
 
-	conf := config.ParseConfig()
+	conf, err := config.ParseConfig()
+	if err != nil {
+		logging.Log.Errorf("parseConfig: %w", err)
+	}
 
 	storage, err := initStore(ctx, conf)
 	if err != nil {
