@@ -61,7 +61,7 @@ func main() {
 	}()
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer stop()
 	err = server.Run(ctx)
 	if err != nil {
