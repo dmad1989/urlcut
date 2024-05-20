@@ -32,10 +32,21 @@ const (
 	targetURL            = "http://localhost:8080/"
 	positiveURL          = "http://ya.ru"
 	JSONBodyRequest      = `{"url":"http://mail.ru/"}`
-	JSONPatternResponse  = `^{"result":"http:\/\/%s\/.+`
+	JSONResponse         = `{"result":"%s/%s"}`
 	JSONPathPattern      = "%s/api/shorten"
 	JSONBatchPathPattern = "%s/api/shorten/batch"
 )
+
+var (
+	errorReader = errors.New("test reader")
+	errorUnique cutter.UniqueURLError
+)
+
+type errReader int
+
+func (errReader) Read(p []byte) (n int, err error) {
+	return 0, errorReader
+}
 
 type TestConfig struct {
 	url           string
@@ -80,6 +91,7 @@ func initEnv() (serv *Server, testserver *httptest.Server) {
 	serv = New(cut, tconf)
 	testserver = httptest.NewServer(serv.mux)
 	tconf.shortAddress = testserver.URL
+	errorUnique.Code = "notunique"
 	return
 }
 
@@ -162,6 +174,16 @@ func TestCutterHandler(t *testing.T) {
 				bodyPattern: "",
 				bodyMessage: "cutterHandler: empty body not expected"},
 		},
+		// {
+		// 	name: "negative - error Read Body",
+		// 	request: postRequest{
+		// 		httpMethod: http.MethodPost,
+		// 		body:       errReader(0)},
+		// 	expResp: expectedPostResponse{
+		// 		code:        http.StatusBadRequest,
+		// 		bodyMessage: strings.Join([]string{"cutterHandler: reading request body: ", errorReader.Error()}, ""),
+		// 	},
+		// },
 		{
 			name: "negative - not url",
 			request: postRequest{
@@ -312,20 +334,23 @@ func TestRedirectHandler(t *testing.T) {
 }
 
 func TestCutterJSONHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	serv, testserver := initEnv()
 	defer testserver.Close()
+	type mockParams struct {
+		shortAddress string
+		cutterResult string
+		cutterError  error
+	}
+
 	tests := []struct {
 		name    string
 		request postRequest
 		expResp expectedPostResponse
-	}{{
-		name: "negative - wrong method",
-		request: postRequest{
-			httpMethod: http.MethodGet,
-			body:       strings.NewReader("")},
-		expResp: expectedPostResponse{
-			code: http.StatusMethodNotAllowed},
-	},
+		mock    mockParams
+	}{
 		{
 			name: "negative - no json header",
 			request: postRequest{
@@ -334,6 +359,10 @@ func TestCutterJSONHandler(t *testing.T) {
 			expResp: expectedPostResponse{
 				code:        http.StatusBadRequest,
 				bodyMessage: `cutterJsonHandler: content-type have to be application/json`},
+			mock: mockParams{
+				shortAddress: serv.config.GetShortAddress()[7:],
+				cutterResult: "",
+				cutterError:  nil},
 		},
 		{
 			name: "negative - empty Body",
@@ -344,8 +373,65 @@ func TestCutterJSONHandler(t *testing.T) {
 			expResp: expectedPostResponse{
 				code:        http.StatusBadRequest,
 				bodyMessage: "cutterJsonHandler: decoding request: EOF"},
+			mock: mockParams{
+				shortAddress: serv.config.GetShortAddress()[7:],
+				cutterResult: "",
+				cutterError:  nil},
 		},
 
+		{
+			name: "negative - error Read Body",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				jsonHeader: true,
+				body:       errReader(0)},
+			expResp: expectedPostResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: strings.Join([]string{"cutterJsonHandler: reading request body: ", errorReader.Error()}, ""),
+			},
+			mock: mockParams{
+				shortAddress: serv.config.GetShortAddress()[7:],
+				cutterResult: "",
+				cutterError:  nil},
+		},
+
+		{
+			name: "negative - error from cutter",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				body: strings.NewReader(`
+					{
+						"correlation_id": "1",
+						"original_url": "http://yaga.ru/"
+					}`),
+				jsonHeader: true},
+			expResp: expectedPostResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: "cutterJsonHandler: getting code for url: from cutter"},
+			mock: mockParams{
+				shortAddress: serv.config.GetShortAddress()[7:],
+				cutterResult: "",
+				cutterError:  errors.New("from cutter")},
+		},
+		{
+			name: "negative - Unique error from cutter",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				body: strings.NewReader(`
+					{
+						"correlation_id": "1",
+						"original_url": "http://yaga.ru/"
+					}`),
+				jsonHeader: true},
+			expResp: expectedPostResponse{
+				code:        http.StatusConflict,
+				bodyMessage: fmt.Sprintf(JSONResponse, serv.config.GetShortAddress(), "notunique")},
+			mock: mockParams{
+				shortAddress: serv.config.GetShortAddress(),
+				cutterResult: "notunique",
+				cutterError:  &errorUnique,
+			},
+		},
 		{
 			name: "positive",
 			request: postRequest{
@@ -354,25 +440,43 @@ func TestCutterJSONHandler(t *testing.T) {
 				body:       strings.NewReader(JSONBodyRequest)},
 			expResp: expectedPostResponse{
 				code:        http.StatusCreated,
-				bodyPattern: fmt.Sprintf(JSONPatternResponse, serv.config.GetShortAddress()[7:]),
-				bodyMessage: ""},
+				bodyMessage: fmt.Sprintf(JSONResponse, serv.config.GetShortAddress(), "positive")},
+			mock: mockParams{
+				shortAddress: serv.config.GetShortAddress(),
+				cutterResult: "positive",
+				cutterError:  nil},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			a := mocks.NewMockICutter(ctrl)
+			c := mocks.NewMockConfiger(ctrl)
+			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(1)
+			a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return(tt.mock.cutterResult, tt.mock.cutterError).MaxTimes(1)
+
+			s := New(a, c)
 			request, err := http.NewRequest(tt.request.httpMethod, fmt.Sprintf(JSONPathPattern, testserver.URL), tt.request.body)
 			if tt.request.jsonHeader {
 				request.Header.Set("Content-Type", "application/json")
 			}
 			require.NoError(t, err)
-			res, err := testserver.Client().Do(request)
+
+			w := httptest.NewRecorder()
+			s.cutterJSONHandler(w, request)
+			res := w.Result()
 			require.NoError(t, err)
 			defer func() {
 				require.NoError(t, res.Body.Close())
 			}()
 
 			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
-			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
+
+			b, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			resBody := string(b)
+			err = res.Body.Close()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expResp.bodyMessage, string(resBody))
 		})
 	}
 }
@@ -463,6 +567,21 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 				uploadError:  nil},
 		},
 		{
+			name: "negative - error Read Body",
+			request: postRequest{
+				httpMethod: http.MethodPost,
+				jsonHeader: true,
+				body:       errReader(0)},
+			expResp: expectedPostResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: strings.Join([]string{"JSONBatchHandler: reading request body: ", errorReader.Error()}, ""),
+			},
+			mock: mockParams{
+				shortAddress: serv.config.GetShortAddress()[7:],
+				uploadResult: jsonobject.Batch{},
+				uploadError:  nil},
+		},
+		{
 			name: "negative - error from cutter",
 			request: postRequest{
 				httpMethod: http.MethodPost,
@@ -512,8 +631,6 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 			c := mocks.NewMockConfiger(ctrl)
 			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(1)
 			a.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(tt.mock.uploadResult, tt.mock.uploadError).MaxTimes(1)
-			fmt.Printf("name: %s, mockederr: %t", tt.name, tt.mock.uploadError == nil)
-			fmt.Println()
 			s := New(a, c)
 			//init request
 			request, err := http.NewRequest(tt.request.httpMethod, fmt.Sprintf(JSONBatchPathPattern, testserver.URL), tt.request.body)

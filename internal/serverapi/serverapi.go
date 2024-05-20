@@ -126,7 +126,7 @@ func (s Server) Run(ctx context.Context) error {
 	})
 
 	if err := g.Wait(); err != nil {
-		fmt.Printf("exit reason: %s \n", err)
+		logging.Log.Infof("exit reason: %s \n", err)
 	}
 	return nil
 }

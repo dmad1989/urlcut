@@ -129,9 +129,6 @@ func (c *Config) initFlags() {
 }
 
 func (c *Config) loadFromFile() error {
-	logging.Log.Infow("congfig.loadFromFile ",
-		zap.String("filePath", c.filePath),
-		zap.Bool("isEmptyPath", c.filePath == ""))
 	if c.filePath == "" {
 		return nil
 	}
@@ -141,13 +138,10 @@ func (c *Config) loadFromFile() error {
 		return fmt.Errorf("reading config file: %w", err)
 	}
 
-	logging.Log.Info("read file ", b)
-
 	var jConf Config
 	if err = json.Unmarshal(b, &jConf); err != nil {
 		return fmt.Errorf("reading config file: %w", err)
 	}
-	logging.Log.Info("unmarshalFile ", jConf)
 
 	c.URL = notEmptyVal(c.URL, jConf.URL)
 	c.ShortAddress = notEmptyVal(c.ShortAddress, jConf.ShortAddress)

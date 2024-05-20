@@ -24,6 +24,7 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/dmad1989/urlcut/internal/serverapi"
 	"github.com/dmad1989/urlcut/internal/store"
+	"go.uber.org/zap"
 )
 
 var (
@@ -33,9 +34,9 @@ var (
 )
 
 func main() {
-	fmt.Printf("Build version: %s\n", checkEmptyParam(buildVersion))
-	fmt.Printf("Build date: %s\n", checkEmptyParam(buildDate))
-	fmt.Printf("Build commit: %s\n", checkEmptyParam(buildCommit))
+	logging.Log.Infow("Build configuration", zap.String("Build version: %s\n", checkEmptyParam(buildVersion)),
+		zap.String("Build date: %s\n", checkEmptyParam(buildDate)),
+		zap.String("Build commit: %s\n", checkEmptyParam(buildCommit)))
 
 	ctx := context.Background()
 	err := logging.Initilize()
