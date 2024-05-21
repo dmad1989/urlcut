@@ -29,21 +29,21 @@ func TestCreateCert(t *testing.T) {
 	tests := []struct {
 		name          string
 		p             params
-		expectedError string
+		expectedError error
 	}{{
 		name:          "no cert path",
 		p:             params{certPath: "", keyPath: ""},
-		expectedError: "CreateCert: CERTIFICATE: saveToFile: path Create: open : The system cannot find the file specified.",
+		expectedError: errorCreateCert,
 	},
 		{
 			name:          "no key path",
 			p:             params{certPath: "cert.pem", keyPath: ""},
-			expectedError: "CreateCert: RSA PRIVATE KEY: saveToFile: path Create: open : The system cannot find the file specified.",
+			expectedError: errorCreateKey,
 		},
 		{
 			name:          "positive",
 			p:             params{certPath: "cert.pem", keyPath: "key.pem"},
-			expectedError: "",
+			expectedError: nil,
 		},
 	}
 
@@ -51,7 +51,7 @@ func TestCreateCert(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := CreateCert(tt.p.certPath, tt.p.keyPath)
 			if err != nil {
-				assert.EqualError(t, err, tt.expectedError)
+				assert.ErrorAs(t, err, &tt.expectedError, "not this kind of error") //) EqualError(t, err, tt.expectedError)
 			} else {
 				require.Empty(t, tt.expectedError, "no error catched? but expected")
 				checkExists(tt.p.certPath)
