@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -339,6 +340,7 @@ func TestCutterJSONHandler(t *testing.T) {
 
 	serv, testserver := initEnv()
 	defer testserver.Close()
+	url := fmt.Sprintf(JSONPathPattern, testserver.URL)
 	type mockParams struct {
 		shortAddress string
 		cutterResult string
@@ -455,7 +457,7 @@ func TestCutterJSONHandler(t *testing.T) {
 			a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return(tt.mock.cutterResult, tt.mock.cutterError).MaxTimes(1)
 
 			s := New(a, c)
-			request, err := http.NewRequest(tt.request.httpMethod, fmt.Sprintf(JSONPathPattern, testserver.URL), tt.request.body)
+			request, err := http.NewRequest(tt.request.httpMethod, url, tt.request.body)
 			if tt.request.jsonHeader {
 				request.Header.Set("Content-Type", "application/json")
 			}
@@ -526,6 +528,8 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 
 	serv, testserver := initEnv()
 	defer testserver.Close()
+	url := fmt.Sprintf(JSONBatchPathPattern, testserver.URL)
+
 	type mockParams struct {
 		//shortAddressTimes int
 		shortAddress string
@@ -633,7 +637,7 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 			a.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(tt.mock.uploadResult, tt.mock.uploadError).MaxTimes(1)
 			s := New(a, c)
 			//init request
-			request, err := http.NewRequest(tt.request.httpMethod, fmt.Sprintf(JSONBatchPathPattern, testserver.URL), tt.request.body)
+			request, err := http.NewRequest(tt.request.httpMethod, url, tt.request.body)
 			if tt.request.jsonHeader {
 				request.Header.Set("Content-Type", "application/json")
 			}
@@ -649,7 +653,167 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 			checkPostBody(res, t, tt.expResp.bodyPattern, tt.expResp.bodyMessage)
 		})
 	}
+}
 
+func TestUserUrlsHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	batches := func(cap int) jsonobject.Batch {
+		batch := make(jsonobject.Batch, 0, cap)
+		for i := 0; i < cap; i++ {
+			batch = append(batch, jsonobject.BatchItem{ID: "id", OriginalURL: "url"})
+		}
+		return batch
+	}
+
+	serv, testserver := initEnv()
+	defer testserver.Close()
+	sAddr := serv.config.GetShortAddress()[7:]
+	url := fmt.Sprintf("%s/api/user/urls", testserver.URL)
+	type mockParams struct {
+		shortAddressTimes int
+		shortAddress      string
+		getUrlsError      error
+		getURLResult      jsonobject.Batch
+	}
+
+	type request struct {
+		ctx context.Context
+	}
+
+	tests := []struct {
+		name    string
+		r       request
+		expResp expectedPostResponse
+		mock    mockParams
+	}{
+		{
+			name: "negative - error in context",
+			r: request{
+				ctx: context.WithValue(
+					context.Background(),
+					config.ErrorCtxKey,
+					errors.New("in context")),
+			},
+			expResp: expectedPostResponse{
+				code:        http.StatusUnauthorized,
+				bodyMessage: "in context\n"},
+			mock: mockParams{
+				shortAddressTimes: 1,
+				shortAddress:      sAddr,
+				getUrlsError:      nil,
+				getURLResult:      jsonobject.Batch{},
+			},
+		},
+		{
+			name: "negative - error no rows from getUserUrls",
+			r: request{
+				ctx: context.Background(),
+			},
+			expResp: expectedPostResponse{
+				code:        http.StatusNoContent,
+				bodyMessage: ""},
+			mock: mockParams{
+				shortAddressTimes: 1,
+				shortAddress:      sAddr,
+				getUrlsError:      sql.ErrNoRows,
+				getURLResult:      jsonobject.Batch{},
+			},
+		},
+		{
+			name: "negative - other error from getUserUrls",
+			r: request{
+				ctx: context.Background(),
+			},
+			expResp: expectedPostResponse{
+				code:        http.StatusBadRequest,
+				bodyMessage: "userUrlsHandler: getting all urls: other problem"},
+			mock: mockParams{
+				shortAddressTimes: 1,
+				shortAddress:      sAddr,
+				getUrlsError:      errors.New("other problem"),
+				getURLResult:      jsonobject.Batch{},
+			},
+		},
+		{
+			name: "negative - no result from getUserUrls",
+			r: request{
+				ctx: context.Background(),
+			},
+			expResp: expectedPostResponse{
+				code:        http.StatusNoContent,
+				bodyMessage: ""},
+			mock: mockParams{
+				shortAddressTimes: 1,
+				shortAddress:      sAddr,
+				getUrlsError:      nil,
+				getURLResult:      jsonobject.Batch{},
+			},
+		},
+		{
+			name: "positive - 1 row from getUserUrls",
+			r: request{
+				ctx: context.Background(),
+			},
+			expResp: expectedPostResponse{
+				code:        http.StatusOK,
+				bodyMessage: fmt.Sprintf("[{\"correlation_id\":\"id\",\"original_url\":\"url\",\"short_url\":\"%s/\"}]", sAddr)},
+			mock: mockParams{
+				shortAddressTimes: 1,
+				shortAddress:      sAddr,
+				getUrlsError:      nil,
+				getURLResult:      batches(1),
+			},
+		},
+		{
+			name: "positive - 5 row from getUserUrls",
+			r: request{
+				ctx: context.Background(),
+			},
+			expResp: expectedPostResponse{
+				code:        http.StatusOK,
+				bodyMessage: fmt.Sprintf("[{\"correlation_id\":\"id\",\"original_url\":\"url\",\"short_url\":\"%s/\"},{\"correlation_id\":\"id\",\"original_url\":\"url\",\"short_url\":\"%s/\"},{\"correlation_id\":\"id\",\"original_url\":\"url\",\"short_url\":\"%s/\"},{\"correlation_id\":\"id\",\"original_url\":\"url\",\"short_url\":\"%s/\"},{\"correlation_id\":\"id\",\"original_url\":\"url\",\"short_url\":\"%s/\"}]", sAddr, sAddr, sAddr, sAddr, sAddr)},
+			mock: mockParams{
+				shortAddressTimes: 5,
+				shortAddress:      serv.config.GetShortAddress()[7:],
+				getUrlsError:      nil,
+				getURLResult:      batches(5),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			//init mocks
+			a := mocks.NewMockICutter(ctrl)
+			c := mocks.NewMockConfiger(ctrl)
+			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(tt.mock.shortAddressTimes)
+			a.EXPECT().GetUserURLs(gomock.Any()).Return(tt.mock.getURLResult, tt.mock.getUrlsError).MaxTimes(1)
+			s := New(a, c)
+			//init request
+			request, err := http.NewRequestWithContext(tt.r.ctx, http.MethodGet, url, strings.NewReader(""))
+			require.NoError(t, err)
+
+			w := httptest.NewRecorder()
+			s.userUrlsHandler(w, request)
+			res := w.Result()
+			defer func() {
+				require.NoError(t, res.Body.Close())
+			}()
+			assert.Equal(t, tt.expResp.code, res.StatusCode, "statusCode error")
+			if res.StatusCode == http.StatusOK {
+				assert.Equal(t, res.Header.Get("Content-Type"), "application/json")
+			}
+
+			b, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			resBody := string(b)
+			err = res.Body.Close()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expResp.bodyMessage, string(resBody))
+		})
+	}
 }
 
 func BenchmarkCutterJSONHandler(b *testing.B) {
