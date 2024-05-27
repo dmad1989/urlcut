@@ -23,6 +23,13 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 )
 
+var (
+	errStatNoRealIP     = errors.New("no X-Real-IP provided")
+	errStatNoConf       = errors.New("no Trusted Subnet defined in config")
+	errStatParseRealIP  = errors.New("parse X-Real-IP")
+	errStatIPNotTrusted = errors.New("no access for your IP")
+)
+
 // @Title URLCutter API
 // @Description Сервис сокращения ссылок.
 // @Version 1.0
@@ -60,6 +67,7 @@ type Configer interface {
 	GetURL() string
 	GetShortAddress() string
 	GetEnableHTTPS() bool
+	GetTrustedSubnet() string
 }
 
 // Server содержит интерфейсы для обращения к другим слоям и роутинг.
@@ -142,6 +150,7 @@ func (s Server) initHandlers() {
 	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
 	s.mux.Get("/api/user/urls", s.userUrlsHandler)
 	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
+	s.mux.Get("/api/internal/stats", s.statsHandler)
 }
 
 // cutterJSONHandler godoc
@@ -426,6 +435,42 @@ func (s Server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 	}
 	go s.cutter.DeleteUrls(userID, ids)
 	res.WriteHeader(http.StatusAccepted)
+}
+
+// TODO swagger
+func (s Server) statsHandler(res http.ResponseWriter, req *http.Request) {
+	if req.Header.Get("X-Real-IP") == "" {
+		res.WriteHeader(http.StatusForbidden)
+		res.Write([]byte(errStatNoRealIP.Error()))
+		return
+	}
+
+	if s.config.GetTrustedSubnet() == "" {
+		responseError(res, errStatNoConf)
+		return
+	}
+
+	cAddr, _, err := net.ParseCIDR(s.config.GetTrustedSubnet())
+	if err != nil {
+		res.WriteHeader(http.StatusForbidden)
+		res.Write([]byte(fmt.Errorf("statsHandler, ParseCIDR: %w", err).Error()))
+		return
+	}
+
+	ip := net.ParseIP(req.Header.Get("X-Real-IP"))
+	if ip == nil {
+		res.WriteHeader(http.StatusForbidden)
+		res.Write([]byte(errStatParseRealIP.Error()))
+		return
+	}
+
+	if !cAddr.Equal(ip) {
+		res.WriteHeader(http.StatusForbidden)
+		res.Write([]byte(errStatIPNotTrusted.Error()))
+		return
+
+	}
+
 }
 
 func responseError(res http.ResponseWriter, err error) {
