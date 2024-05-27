@@ -9,12 +9,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	_ "net/http/pprof"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
@@ -110,23 +110,24 @@ func (s Server) Run(ctx context.Context) error {
 		return fmt.Errorf("https serv start: %w ", err)
 	}
 
-	g, gCtx := errgroup.WithContext(ctx)
-	g.Go(func() (err error) {
+	go func() {
+		var err error
 		if s.config.GetEnableHTTPS() {
 			err = httpsServ()
 		} else {
 			err = httpServ()
 		}
-		return
-	})
+		if err != nil && err != http.ErrServerClosed {
+			logging.Log.Errorf("listen: %+v\n", err)
+		}
+	}()
 
-	g.Go(func() error {
-		<-gCtx.Done()
-		return httpServer.Shutdown(context.Background())
-	})
-
-	if err := g.Wait(); err != nil {
-		logging.Log.Infof("exit reason: %s \n", err)
+	<-ctx.Done()
+	logging.Log.Info("server closed")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(ctx); err != nil {
+		logging.Log.Errorf("server shutdown: %s \n", err)
 	}
 	return nil
 }

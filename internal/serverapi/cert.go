@@ -15,8 +15,10 @@ import (
 	"time"
 )
 
-var errorCreateCert = errors.New("CreateCert: CERTIFICATE ")
-var errorCreateKey = errors.New("CreateCert: RSA PRIVATE KEY ")
+var (
+	errCreateCert = errors.New("CreateCert: CERTIFICATE ")
+	errCreateKey  = errors.New("CreateCert: RSA PRIVATE KEY ")
+)
 
 // CreateCert - создает сертифкат и ключ. Сохраняет в файлы корневой папке проетка.
 func CreateCert(certPath, keyPath string) error {
@@ -60,12 +62,12 @@ func CreateCert(certPath, keyPath string) error {
 	// используется для хранения и обмена криптографическими ключами
 	err = saveToFile(certPath, "CERTIFICATE", certBytes)
 	if err != nil {
-		return errors.Join(errorCreateCert, err) //fmt.Errorf("CreateCert: CERTIFICATE: %w", err)
+		return errors.Join(errCreateCert, err) //fmt.Errorf("CreateCert: CERTIFICATE: %w", err)
 	}
 
 	err = saveToFile(keyPath, "RSA PRIVATE KEY", x509.MarshalPKCS1PrivateKey(privateKey))
 	if err != nil {
-		return errors.Join(errorCreateKey, err)
+		return errors.Join(errCreateKey, err)
 	}
 
 	return nil

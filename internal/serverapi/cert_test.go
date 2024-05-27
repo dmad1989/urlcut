@@ -33,12 +33,12 @@ func TestCreateCert(t *testing.T) {
 	}{{
 		name:          "no cert path",
 		p:             params{certPath: "", keyPath: ""},
-		expectedError: errorCreateCert,
+		expectedError: errCreateCert,
 	},
 		{
 			name:          "no key path",
 			p:             params{certPath: "cert.pem", keyPath: ""},
-			expectedError: errorCreateKey,
+			expectedError: errCreateKey,
 		},
 		{
 			name:          "positive",

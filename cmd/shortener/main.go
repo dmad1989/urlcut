@@ -48,6 +48,7 @@ func main() {
 	conf, err := config.ParseConfig()
 	if err != nil {
 		logging.Log.Errorf("parseConfig: %w", err)
+		return
 	}
 
 	storage, err := initStore(ctx, conf)
