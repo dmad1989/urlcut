@@ -24,6 +24,7 @@ import (
 	"github.com/dmad1989/urlcut/internal/logging"
 	"github.com/dmad1989/urlcut/internal/serverapi"
 	"github.com/dmad1989/urlcut/internal/store"
+	"go.uber.org/zap"
 )
 
 var (
@@ -33,9 +34,9 @@ var (
 )
 
 func main() {
-	fmt.Printf("Build version: %s\n", checkEmptyParam(buildVersion))
-	fmt.Printf("Build date: %s\n", checkEmptyParam(buildDate))
-	fmt.Printf("Build commit: %s\n", checkEmptyParam(buildCommit))
+	logging.Log.Infow("Build configuration", zap.String("Build version: %s\n", checkEmptyParam(buildVersion)),
+		zap.String("Build date: %s\n", checkEmptyParam(buildDate)),
+		zap.String("Build commit: %s\n", checkEmptyParam(buildCommit)))
 
 	ctx := context.Background()
 	err := logging.Initilize()
@@ -44,7 +45,11 @@ func main() {
 	}
 	defer logging.Log.Sync()
 
-	conf := config.ParseConfig()
+	conf, err := config.ParseConfig()
+	if err != nil {
+		logging.Log.Errorf("parseConfig: %w", err)
+		return
+	}
 
 	storage, err := initStore(ctx, conf)
 	if err != nil {
@@ -58,7 +63,7 @@ func main() {
 	}()
 	app := cutter.New(storage)
 	server := serverapi.New(app, conf)
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer stop()
 	err = server.Run(ctx)
 	if err != nil {

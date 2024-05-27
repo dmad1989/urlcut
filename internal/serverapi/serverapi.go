@@ -9,12 +9,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	_ "net/http/pprof"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
@@ -59,6 +59,7 @@ type ICutter interface {
 type Configer interface {
 	GetURL() string
 	GetShortAddress() string
+	GetEnableHTTPS() bool
 }
 
 // Server содержит интерфейсы для обращения к другим слоям и роутинг.
@@ -88,21 +89,45 @@ func (s Server) Run(ctx context.Context) error {
 			return ctx
 		},
 	}
-	g, gCtx := errgroup.WithContext(ctx)
-	g.Go(func() error {
+
+	httpServ := func() error {
 		err := httpServer.ListenAndServe()
 		if err != nil {
 			return fmt.Errorf("serverapi.Run: %w", err)
 		}
 		return nil
-	})
-	g.Go(func() error {
-		<-gCtx.Done()
-		return httpServer.Shutdown(context.Background())
-	})
+	}
+	httpsServ := func() (err error) {
+		const (
+			cert = "cert.pem"
+			key  = "key.pem"
+		)
+		err = CreateCert(cert, key)
+		if err != nil {
+			return fmt.Errorf("create cert: %w ", err)
+		}
+		err = httpServer.ListenAndServeTLS(cert, key)
+		return fmt.Errorf("https serv start: %w ", err)
+	}
 
-	if err := g.Wait(); err != nil {
-		fmt.Printf("exit reason: %s \n", err)
+	go func() {
+		var err error
+		if s.config.GetEnableHTTPS() {
+			err = httpsServ()
+		} else {
+			err = httpServ()
+		}
+		if err != nil && err != http.ErrServerClosed {
+			logging.Log.Errorf("listen: %+v\n", err)
+		}
+	}()
+
+	<-ctx.Done()
+	logging.Log.Info("server closed")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(ctx); err != nil {
+		logging.Log.Errorf("server shutdown: %s \n", err)
 	}
 	return nil
 }
