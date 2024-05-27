@@ -54,6 +54,7 @@ type TestConfig struct {
 	shortAddress  string
 	fileStoreName string
 	dbConnName    string
+	trustedSubnet string
 }
 
 var tconf *TestConfig
@@ -78,6 +79,11 @@ func (c TestConfig) GetUserContextKey() config.ContextKey {
 func (c TestConfig) GetEnableHTTPS() bool {
 	return false
 }
+
+func (c TestConfig) GetTrustedSubnet() string {
+	return c.trustedSubnet
+}
+
 func initEnv() (serv *Server, testserver *httptest.Server) {
 	tconf = &TestConfig{
 		url:           ":8080",

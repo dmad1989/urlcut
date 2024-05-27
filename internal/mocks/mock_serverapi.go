@@ -63,6 +63,20 @@ func (mr *MockConfigerMockRecorder) GetShortAddress() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShortAddress", reflect.TypeOf((*MockConfiger)(nil).GetShortAddress))
 }
 
+// GetTrustedSubnet mocks base method.
+func (m *MockConfiger) GetTrustedSubnet() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTrustedSubnet")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetTrustedSubnet indicates an expected call of GetTrustedSubnet.
+func (mr *MockConfigerMockRecorder) GetTrustedSubnet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTrustedSubnet", reflect.TypeOf((*MockConfiger)(nil).GetTrustedSubnet))
+}
+
 // GetURL mocks base method.
 func (m *MockConfiger) GetURL() string {
 	m.ctrl.T.Helper()

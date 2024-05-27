@@ -468,7 +468,6 @@ func (s Server) statsHandler(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusForbidden)
 		res.Write([]byte(errStatIPNotTrusted.Error()))
 		return
-
 	}
 
 }
