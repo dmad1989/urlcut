@@ -93,6 +93,7 @@ func ParseConfig() (conf Config, err error) {
 		zap.String("dbConnName", conf.DBConnName),
 		zap.Bool("ENABLE_HTTPS", conf.EnableHTTPS),
 		zap.String("CONFIG", conf.filePath),
+		zap.String("trusted IPs", conf.TrustedSubnet),
 		zap.Error(err),
 	)
 	return conf, err

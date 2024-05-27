@@ -340,3 +340,9 @@ func (s EmptyStore) GetUserURLs(ctx context.Context) (jsonobject.Batch, error) {
 func (s EmptyStore) DeleteURLs(ctx context.Context, userID string, ids []string) error {
 	return nil
 }
+func (s EmptyStore) CountURLs(ctx context.Context) (int, error) {
+	return 0, nil
+}
+func (s EmptyStore) CountUsers(ctx context.Context) (int, error) {
+	return 0, nil
+}

@@ -165,6 +165,20 @@ func (s *storage) readFromFile() error {
 	return nil
 }
 
+// CountURLs не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
+func (s *storage) CountURLs(ctx context.Context) (int, error) {
+	return 0, errors.New("unsupported store method")
+}
+
+// CountUsers не поддерживается для данного типа хранилища.
+//
+// Deprecated: не пддерживайется для хранилища - файла.
+func (s *storage) CountUsers(ctx context.Context) (int, error) {
+	return 0, errors.New("unsupported store method")
+}
+
 // Consumer открывает файл на чтение и читает из него.
 type Consumer struct {
 	file    *os.File

@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
@@ -30,6 +31,8 @@ type Store interface {
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
 	DeleteURLs(ctx context.Context, userID string, ids []string) error
+	CountURLs(ctx context.Context) (int, error)
+	CountUsers(ctx context.Context) (int, error)
 }
 
 // App структура с бизнес-логикой.
@@ -145,6 +148,33 @@ func (a *App) DeleteUrls(userID string, ids jsonobject.ShortIds) {
 		}
 	}
 	close(batchCh)
+}
+
+// GetStats запрашивает кол-во всех уникальных пользователий и URL
+// Запросы идут в двух разных горутинах, используя errgroup
+func (a *App) GetStats(ctx context.Context) (jsonobject.Stats, error) {
+	stats := jsonobject.Stats{}
+	g, ectx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		u, err := a.storage.CountUsers(ectx)
+		if err != nil {
+			return fmt.Errorf("GetStats, a.storage.CountUsers, %w", err)
+		}
+		stats.Users = u
+		return nil
+	})
+	g.Go(func() error {
+		u, err := a.storage.CountURLs(ectx)
+		if err != nil {
+			return fmt.Errorf("GetStats, a.storage.CountURLs, %w", err)
+		}
+		stats.URLs = u
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return jsonobject.Stats{}, nil
+	}
+	return stats, nil
 }
 
 // UniqueURLError ошибка уникальности URL.

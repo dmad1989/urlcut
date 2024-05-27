@@ -156,6 +156,21 @@ func (mr *MockICutterMockRecorder) GetKeyByValue(arg0, arg1 interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKeyByValue", reflect.TypeOf((*MockICutter)(nil).GetKeyByValue), arg0, arg1)
 }
 
+// GetStats mocks base method.
+func (m *MockICutter) GetStats(arg0 context.Context) (jsonobject.Stats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStats", arg0)
+	ret0, _ := ret[0].(jsonobject.Stats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStats indicates an expected call of GetStats.
+func (mr *MockICutterMockRecorder) GetStats(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStats", reflect.TypeOf((*MockICutter)(nil).GetStats), arg0)
+}
+
 // GetUserURLs mocks base method.
 func (m *MockICutter) GetUserURLs(arg0 context.Context) (jsonobject.Batch, error) {
 	m.ctrl.T.Helper()

@@ -52,6 +52,9 @@ var (
 // @Tag.name Info
 // @Tag.description "Группа запросов состояния сервиса"
 
+// @Tag.name Stats
+// @Tag.description "Группа запросов для сбора статистики"
+
 // ICutter интерфейс слоя с бизнес логикой
 type ICutter interface {
 	Cut(cxt context.Context, url string) (generated string, err error)
@@ -60,6 +63,7 @@ type ICutter interface {
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
 	DeleteUrls(userID string, ids jsonobject.ShortIds)
+	GetStats(ctx context.Context) (jsonobject.Stats, error)
 }
 
 // Configer интерйфейс конфигураци
@@ -268,7 +272,7 @@ func (s Server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 
 	redirectURL, err := s.cutter.GetKeyByValue(req.Context(), path)
 	if err != nil {
-		if errors.Is(err, dbstore.ErrorDeletedURL) {
+		if errors.Is(err, dbstore.ErrDeletedURL) {
 			res.WriteHeader(http.StatusGone)
 			res.Write([]byte(err.Error()))
 			return
@@ -437,7 +441,16 @@ func (s Server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 	res.WriteHeader(http.StatusAccepted)
 }
 
-// TODO swagger
+// statsHandler godoc
+// @Tags Stats
+// @Summary Количество уникальных пользователей и количество URL
+// @ID stats
+// @Produce json
+// @Success 200 {object} jsonobject.Stats
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 403 {string} string "Доступ к данным запрещен"
+// @Failure 400 {string} string "Ошибка"
+// @Router /api/internal/stats [get]
 func (s Server) statsHandler(res http.ResponseWriter, req *http.Request) {
 	if req.Header.Get("X-Real-IP") == "" {
 		res.WriteHeader(http.StatusForbidden)
@@ -469,6 +482,21 @@ func (s Server) statsHandler(res http.ResponseWriter, req *http.Request) {
 		res.Write([]byte(errStatIPNotTrusted.Error()))
 		return
 	}
+	stats, err := s.cutter.GetStats(req.Context())
+
+	if err != nil {
+		responseError(res, fmt.Errorf("statsHandler, %w", err))
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	respb, err := stats.MarshalJSON()
+	if err != nil {
+		responseError(res, fmt.Errorf("statsHandler: encoding response: %w", err))
+		return
+	}
+	res.Write(respb)
 
 }
 
