@@ -63,6 +63,20 @@ func (mr *MockConfigerMockRecorder) GetShortAddress() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShortAddress", reflect.TypeOf((*MockConfiger)(nil).GetShortAddress))
 }
 
+// GetTrustedSubnet mocks base method.
+func (m *MockConfiger) GetTrustedSubnet() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTrustedSubnet")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// GetTrustedSubnet indicates an expected call of GetTrustedSubnet.
+func (mr *MockConfigerMockRecorder) GetTrustedSubnet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTrustedSubnet", reflect.TypeOf((*MockConfiger)(nil).GetTrustedSubnet))
+}
+
 // GetURL mocks base method.
 func (m *MockConfiger) GetURL() string {
 	m.ctrl.T.Helper()
@@ -140,6 +154,21 @@ func (m *MockICutter) GetKeyByValue(arg0 context.Context, arg1 string) (string, 
 func (mr *MockICutterMockRecorder) GetKeyByValue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKeyByValue", reflect.TypeOf((*MockICutter)(nil).GetKeyByValue), arg0, arg1)
+}
+
+// GetStats mocks base method.
+func (m *MockICutter) GetStats(arg0 context.Context) (jsonobject.Stats, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStats", arg0)
+	ret0, _ := ret[0].(jsonobject.Stats)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStats indicates an expected call of GetStats.
+func (mr *MockICutterMockRecorder) GetStats(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStats", reflect.TypeOf((*MockICutter)(nil).GetStats), arg0)
 }
 
 // GetUserURLs mocks base method.

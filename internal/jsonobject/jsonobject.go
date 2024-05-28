@@ -41,3 +41,11 @@ type Response struct {
 //
 //easyjson:json
 type ShortIds []string
+
+// Stats содержит данные статистики
+//
+//easyjson:json
+type Stats struct {
+	URLs  int `json:"urls" example:"1"`
+	Users int `json:"users" example:"1"`
+}
