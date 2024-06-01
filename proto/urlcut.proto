@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package urlcut;
+
+option go_package = "urlcut/proto";
+
+message CutterRequest{
+    string url = 1;
+}
+message CutterResponse{
+    string result =1;
+}
+message RedirectRequest{
+    string shorten = 1;
+}
+message RedirectResponse{
+    string url = 1;
+}
+
+message URLItem{
+  string correlation_id = 1;
+  string original_url = 2;
+  string short_url =3;
+}
+message CutterJsonBatchRequest{
+    repeated URLItem batch = 1;
+}
+message CutterJsonBatchResponse{
+    repeated URLItem batch = 1;
+}
+message UserUrlsResponse{
+    repeated URLItem batch = 1;
+}
+message DeleteUserUrlsRequest{
+    repeated string ids = 1;
+}
+message StatsResponse{
+    int32 urls = 1;
+    int32 users = 2;
+}
+
+service UrlCut{
+    rpc CutterJson(CutterRequest) returns (CutterResponse);
+    rpc Cutter(CutterRequest) returns (CutterResponse);
+    rpc Redirect(RedirectRequest) returns (RedirectResponse);
+    rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty); 
+    rpc CutterJsonBatch(CutterJsonBatchRequest) returns (CutterJsonBatchResponse);
+    rpc UserUrls(google.protobuf.Empty) returns (UserUrlsResponse);
+    rpc DeleteUsersUrls(DeleteUserUrlsRequest) returns (google.protobuf.Empty);
+    rpc Stats(google.protobuf.Empty) returns (StatsResponse);
+}
+
