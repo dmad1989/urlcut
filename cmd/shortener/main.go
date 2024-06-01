@@ -62,10 +62,11 @@ func main() {
 		}
 	}()
 	app := cutter.New(storage)
-	s := server.New(app, conf)
+	s := server.New(app, conf, ctx)
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer stop()
-	err = s.Run(ctx)
+	err = s.Serve(ctx)
+
 	if err != nil {
 		panic(err)
 	}

@@ -4,44 +4,40 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dmad1989/urlcut/internal/jsonobject"
 	grpc "github.com/dmad1989/urlcut/internal/server/grpc"
 	http "github.com/dmad1989/urlcut/internal/server/http"
 )
 
-// ICutter интерфейс слоя с бизнес логикой
-type ICutter interface {
-	Cut(cxt context.Context, url string) (generated string, err error)
-	GetKeyByValue(cxt context.Context, value string) (res string, err error)
-	PingDB(context.Context) error
-	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
-	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
-	DeleteUrls(userID string, ids jsonobject.ShortIds)
-	GetStats(ctx context.Context) (jsonobject.Stats, error)
-}
-
-// Configer интерйфейс конфигураци
-type Configer interface {
-	GetURL() string
-	GetShortAddress() string
-	GetEnableHTTPS() bool
-	GetTrustedSubnet() string
+type server interface {
+	Run(context.Context) error
+	Stop()
 }
 
 type Servers struct {
-	httpServer *http.Server
-	grpcServer *grpc.Server
+	httpServer server //*http.Server
+	grpcServer server //*grpc.Server
 }
 
-func New(cutter ICutter, config Configer) *Servers {
-	return &Servers{http.New(cutter, config), grpc.New(cutter, config)}
+func New(cutter http.ICutter, config http.Configer, ctx context.Context) *Servers {
+	return &Servers{
+		http.New(cutter, config, ctx),
+		grpc.New(cutter, config)}
 }
 
-func (s *Servers) Run(ctx context.Context) (err error) {
-	err = s.httpServer.Run(ctx)
-	if err != nil {
+func (s *Servers) Serve(ctx context.Context) (err error) {
+	if err = s.httpServer.Run(ctx); err != nil {
 		return fmt.Errorf("http server run: %w", err)
 	}
 
+	if err = s.grpcServer.Run(ctx); err != nil {
+		return fmt.Errorf("grpc server run: %w", err)
+	}
+	<-ctx.Done()
+	s.httpServer.Stop()
+	s.grpcServer.Stop()
 	return
+}
+
+func (s *Servers) Stop() {
+
 }

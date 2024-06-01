@@ -2,9 +2,12 @@ package grpc
 
 import (
 	"context"
+	"net"
 
 	"github.com/dmad1989/urlcut/internal/jsonobject"
+	"github.com/dmad1989/urlcut/internal/logging"
 	pb "github.com/dmad1989/urlcut/proto"
+	"google.golang.org/grpc"
 )
 
 // ICutter интерфейс слоя с бизнес логикой
@@ -28,10 +31,31 @@ type Configer interface {
 
 type Server struct {
 	pb.UnimplementedUrlCutServer
+	grpc *grpc.Server
 }
 
 func New(cutter ICutter, config Configer) *Server {
-	// api := &Server{cutter: cutter, config: config, mux: chi.NewMux()}
-	// api.initHandlers()
-	return &Server{}
+	return &Server{grpc: grpc.NewServer()}
+}
+
+func (s *Server) Run(ctx context.Context) error {
+	// pb.RegisterUrlCutServer(grpcServer, &s)
+	go func() {
+		l, err := net.Listen("tcp", ":3200")
+		if err != nil {
+			logging.Log.Errorf("listen tcp port 3200 %w", err)
+		}
+		logging.Log.Info("gRPC server started")
+		err = s.grpc.Serve(l)
+		if err != nil {
+			logging.Log.Errorf("grps server serve: %w", err)
+		}
+	}()
+
+	return nil
+}
+
+func (s *Server) Stop() {
+	logging.Log.Info("gRPC server closed")
+	s.grpc.GracefulStop()
 }

@@ -79,12 +79,20 @@ type Server struct {
 	cutter ICutter
 	config Configer
 	mux    *chi.Mux
+	http   *http.Server
 }
 
 // New создает новый Server и инициализирует Хэндлеры.
-func New(cutter ICutter, config Configer) *Server {
+func New(cutter ICutter, config Configer, ctx context.Context) *Server {
 	api := &Server{cutter: cutter, config: config, mux: chi.NewMux()}
 	api.initHandlers()
+	api.http = &http.Server{
+		Addr:    config.GetURL(),
+		Handler: api.mux,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
+	}
 	return api
 }
 
@@ -94,16 +102,9 @@ func New(cutter ICutter, config Configer) *Server {
 func (s Server) Run(ctx context.Context) error {
 	defer logging.Log.Sync()
 	logging.Log.Infof("Server started at %s", s.config.GetURL())
-	httpServer := &http.Server{
-		Addr:    s.config.GetURL(),
-		Handler: s.mux,
-		BaseContext: func(_ net.Listener) context.Context {
-			return ctx
-		},
-	}
 
 	httpServ := func() error {
-		err := httpServer.ListenAndServe()
+		err := s.http.ListenAndServe()
 		if err != nil {
 			return fmt.Errorf("api.Run: %w", err)
 		}
@@ -118,7 +119,7 @@ func (s Server) Run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("create cert: %w ", err)
 		}
-		err = httpServer.ListenAndServeTLS(cert, key)
+		err = s.http.ListenAndServeTLS(cert, key)
 		return fmt.Errorf("https serv start: %w ", err)
 	}
 
@@ -129,19 +130,21 @@ func (s Server) Run(ctx context.Context) error {
 		} else {
 			err = httpServ()
 		}
-		if err != nil && err != http.ErrServerClosed {
-			logging.Log.Errorf("listen: %+v\n", err)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logging.Log.Errorf("http listen: %+v\n", err)
 		}
 	}()
 
-	<-ctx.Done()
-	logging.Log.Info("server closed")
+	return nil
+}
+
+func (s *Server) Stop() {
+	logging.Log.Info("http server closed")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := httpServer.Shutdown(ctx); err != nil {
-		logging.Log.Errorf("server shutdown: %s \n", err)
+	if err := s.http.Shutdown(ctx); err != nil {
+		logging.Log.Errorf("http server shutdown: %s \n", err)
 	}
-	return nil
 }
 
 func (s Server) initHandlers() {
