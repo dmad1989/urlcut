@@ -1,4 +1,4 @@
-package serverapi
+package http
 
 import (
 	"context"
@@ -105,7 +105,7 @@ func (s Server) Run(ctx context.Context) error {
 	httpServ := func() error {
 		err := httpServer.ListenAndServe()
 		if err != nil {
-			return fmt.Errorf("serverapi.Run: %w", err)
+			return fmt.Errorf("api.Run: %w", err)
 		}
 		return nil
 	}

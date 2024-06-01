@@ -22,7 +22,7 @@ import (
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/dbstore"
 	"github.com/dmad1989/urlcut/internal/logging"
-	"github.com/dmad1989/urlcut/internal/serverapi"
+	"github.com/dmad1989/urlcut/internal/server"
 	"github.com/dmad1989/urlcut/internal/store"
 	"go.uber.org/zap"
 )
@@ -62,10 +62,10 @@ func main() {
 		}
 	}()
 	app := cutter.New(storage)
-	server := serverapi.New(app, conf)
+	s := server.New(app, conf)
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer stop()
-	err = server.Run(ctx)
+	err = s.Run(ctx)
 	if err != nil {
 		panic(err)
 	}
