@@ -1,4 +1,4 @@
-package http
+package auth
 
 import (
 	"context"
@@ -9,8 +9,14 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/dmad1989/urlcut/internal/config"
+	iauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	ilog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 )
 
 // Claims хранит в себе данные токена
@@ -30,11 +36,11 @@ const (
 	secretKey = "gopracticumshoretenersecretkey"
 )
 
-// Auth это middleware для регистрации и авторизации пользователей.
+// HTTP это middleware для регистрации и авторизации пользователей.
 // Проверяет наличие и валидность токена в cookie "token".
 // Если cookie нет - регистрируем нового пользователя: генерируем новый ID, токен и записываем в cookie.
 // Полученный из токена или сгенерированный userid записываем в контекст вызова.
-func (s Server) Auth(h http.Handler) http.Handler {
+func HTTP(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextW := w
 		tCookie, err := r.Cookie("token")
@@ -71,6 +77,40 @@ func (s Server) Auth(h http.Handler) http.Handler {
 		ctx = context.WithValue(ctx, config.ErrorCtxKey, err)
 		h.ServeHTTP(nextW, r.WithContext(ctx))
 	})
+}
+
+func GRPC(ctx context.Context) (context.Context, error) {
+	token, err := iauth.AuthFromMD(ctx, "bearer")
+	if err != nil && err.Error() != "" {
+		return nil, err
+	}
+	userID := ""
+	if token != "" {
+		userID, err = checkToken(token)
+	}
+
+	switch {
+	case token == "" || errors.Is(err, ErrorInvalidToken):
+		userID = createUserID()
+		token, tokenErr := generateToken(userID)
+		if tokenErr != nil {
+			return nil, fmt.Errorf("auth : %w", tokenErr)
+		}
+		tHeader := metadata.New(map[string]string{"authorization": "bearer " + token})
+		if err := grpc.SendHeader(ctx, tHeader); err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to send 'authorization' header")
+		}
+	case err != nil:
+		return nil, fmt.Errorf("auth : %w", err)
+	}
+	ctx = context.WithValue(ctx, config.TokenCtxKey, token)
+	ctx = context.WithValue(ctx, config.UserCtxKey, userID)
+	ctx = context.WithValue(ctx, config.ErrorCtxKey, err)
+
+	ctx = ilog.InjectFields(ctx, ilog.Fields{"auth.sub", userID})
+
+	// WARNING: In production define your own type to avoid context collisions.
+	return ctx, nil
 }
 
 // checkToken проверяет токен на валидность.

@@ -25,6 +25,7 @@ const (
 var (
 	UserCtxKey  = &ContextKey{"userId"} // ID пользователя
 	ErrorCtxKey = &ContextKey{"error"}  // ошибка
+	TokenCtxKey = &ContextKey{"token"}  // токен
 )
 
 // ContextKey реализует ключ для значения в контексте.

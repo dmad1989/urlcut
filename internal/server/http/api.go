@@ -21,6 +21,7 @@ import (
 	"github.com/dmad1989/urlcut/internal/dbstore"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
+	"github.com/dmad1989/urlcut/internal/server/auth"
 )
 
 var (
@@ -148,7 +149,7 @@ func (s *Server) Stop() {
 }
 
 func (s Server) initHandlers() {
-	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
+	s.mux.Use(logging.WithLog, auth.HTTP, gzipMiddleware)
 	s.mux.Mount("/debug", middleware.Profiler())
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)

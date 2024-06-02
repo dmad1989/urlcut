@@ -1,3 +1,5 @@
+// Package server is pre server layer
+// starts and stops http and gRPC server implemetations
 package server
 
 import (
@@ -13,17 +15,23 @@ type server interface {
 	Stop()
 }
 
+// Servers contains http and grpc variables of server interface
 type Servers struct {
-	httpServer server //*http.Server
-	grpcServer server //*grpc.Server
+	httpServer server
+	grpcServer server
 }
 
+// New creates new instanse of Servers
+// And creates new instanse of http and grpc servers
 func New(cutter http.ICutter, config http.Configer, ctx context.Context) *Servers {
 	return &Servers{
 		http.New(cutter, config, ctx),
 		grpc.New(cutter, config)}
 }
 
+// Serve func starts servers using Run func
+// Waits till context signal recieved
+// Gracefully stoppes servers using Stop
 func (s *Servers) Serve(ctx context.Context) (err error) {
 	if err = s.httpServer.Run(ctx); err != nil {
 		return fmt.Errorf("http server run: %w", err)
@@ -36,8 +44,4 @@ func (s *Servers) Serve(ctx context.Context) (err error) {
 	s.httpServer.Stop()
 	s.grpcServer.Stop()
 	return
-}
-
-func (s *Servers) Stop() {
-
 }
