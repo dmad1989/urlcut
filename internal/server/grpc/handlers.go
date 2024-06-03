@@ -94,7 +94,7 @@ func (h *Handlers) CutterJsonBatch(ctx context.Context, req *pb.CutterJsonBatchR
 		return nil, status.Errorf(codes.Internal, "CutterJsonBatch: getting code for url: %s", err.Error())
 	}
 
-	var res pb.CutterJsonBatchResponse = pb.CutterJsonBatchResponse{Batch: req.Batch}
+	res := pb.CutterJsonBatchResponse{Batch: req.Batch}
 
 	for _, b := range batchResponse {
 		res.Batch = append(res.Batch, &pb.URLItem{CorrelationId: b.ID, OriginalUrl: b.OriginalURL, ShortUrl: fmt.Sprintf("%s/%s", h.config.GetShortAddress(), b.ShortURL)})
