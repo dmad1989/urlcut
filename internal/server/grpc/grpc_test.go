@@ -138,7 +138,7 @@ func TestCutterJson(t *testing.T) {
 					assert.Equal(t, tt.w.code, e.Code())
 				}
 			}
-			assert.Equalf(t, tt.w.response, got, "Short(_, %v)", tt.request)
+			assert.Equalf(t, tt.w.response, got, "%s: %v", tt.name, tt.request)
 		})
 	}
 
