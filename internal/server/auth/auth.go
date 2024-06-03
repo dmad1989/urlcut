@@ -1,3 +1,5 @@
+// Package auth check and generate users and their JWT tokens
+// Contains middleware for http  and interceptor for grpc
 package auth
 
 import (
@@ -5,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -79,9 +82,13 @@ func HTTP(h http.Handler) http.Handler {
 	})
 }
 
+// GRPC is interceptor for user's registration and authorization
+// Check if token present in authorization metadata
+// If authorization is empty ("beraer  ") - new user wil be created with new ID, token
+// User id wil be written in context, token in response metadata
 func GRPC(ctx context.Context) (context.Context, error) {
 	token, err := iauth.AuthFromMD(ctx, "bearer")
-	if err != nil && err.Error() != "" {
+	if err != nil && !strings.Contains(err.Error(), "Request unauthenticated with bearer") {
 		return nil, err
 	}
 	userID := ""
@@ -92,16 +99,16 @@ func GRPC(ctx context.Context) (context.Context, error) {
 	switch {
 	case token == "" || errors.Is(err, ErrorInvalidToken):
 		userID = createUserID()
-		token, tokenErr := generateToken(userID)
-		if tokenErr != nil {
-			return nil, fmt.Errorf("auth : %w", tokenErr)
-		}
-		tHeader := metadata.New(map[string]string{"authorization": "bearer " + token})
-		if err := grpc.SendHeader(ctx, tHeader); err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to send 'authorization' header")
+		if token, err = generateToken(userID); err != nil {
+			return nil, fmt.Errorf("auth : %w", err)
 		}
 	case err != nil:
 		return nil, fmt.Errorf("auth : %w", err)
+	}
+
+	tHeader := metadata.New(map[string]string{"authorization": "bearer " + token})
+	if err := grpc.SendHeader(ctx, tHeader); err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to send 'authorization' header")
 	}
 	ctx = context.WithValue(ctx, config.TokenCtxKey, token)
 	ctx = context.WithValue(ctx, config.UserCtxKey, userID)
