@@ -29,7 +29,7 @@ func (h *Handlers) CutterJson(ctx context.Context, req *pb.CutterRequest) (*pb.C
 	if err != nil {
 		var uerr *cutter.UniqueURLError
 		if !errors.As(err, &uerr) {
-			return nil, status.Errorf(codes.Internal, "cutterJson: getting code for url: %w", err)
+			return nil, status.Errorf(codes.Internal, "cutterJson: getting code for url: %s", err.Error())
 		}
 		errResult = status.Errorf(codes.AlreadyExists, "such code already exists")
 		code = uerr.Code
