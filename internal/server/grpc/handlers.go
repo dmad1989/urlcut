@@ -2,14 +2,18 @@ package grpc
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 
+	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/dbstore"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	pb "github.com/dmad1989/urlcut/proto"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -93,21 +97,84 @@ func (h *Handlers) CutterJsonBatch(ctx context.Context, req *pb.CutterJsonBatchR
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "CutterJsonBatch: getting code for url: %s", err.Error())
 	}
-
-	res := pb.CutterJsonBatchResponse{Batch: req.Batch}
+	resBatch := make([]*pb.URLItem, len(req.Batch))
 
 	for _, b := range batchResponse {
-		res.Batch = append(res.Batch, &pb.URLItem{CorrelationId: b.ID, OriginalUrl: b.OriginalURL, ShortUrl: fmt.Sprintf("%s/%s", h.config.GetShortAddress(), b.ShortURL)})
+		resBatch = append(resBatch, &pb.URLItem{CorrelationId: b.ID, OriginalUrl: b.OriginalURL, ShortUrl: fmt.Sprintf("%s/%s", h.config.GetShortAddress(), b.ShortURL)})
 	}
 
-	return &res, nil
+	return &pb.CutterJsonBatchResponse{Batch: resBatch}, nil
 }
-func (h *Handlers) UserUrls(context.Context, *emptypb.Empty) (*pb.UserUrlsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UserUrls not implemented")
+func (h *Handlers) UserUrls(ctx context.Context, req *emptypb.Empty) (*pb.UserUrlsResponse, error) {
+	err, _ := ctx.Value(config.ErrorCtxKey).(error)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "UserUrls: not authorized: %s", err.Error())
+	}
+
+	urls, err := h.cutter.GetUserURLs(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, status.Error(codes.NotFound, "UserUrls: no urls found")
+		}
+		return nil, status.Errorf(codes.Internal, "UserUrls: getting all urls: %s", err.Error())
+	}
+
+	if len(urls) == 0 {
+		return nil, status.Error(codes.NotFound, "UserUrls: no urls found")
+	}
+
+	for i := 0; i < len(urls); i++ {
+		urls[i].ShortURL = fmt.Sprintf("%s/%s", h.config.GetShortAddress(), urls[i].ShortURL)
+	}
+
+	resBatch := make([]*pb.URLItem, len(urls))
+	for _, b := range urls {
+		resBatch = append(resBatch, &pb.URLItem{CorrelationId: b.ID, OriginalUrl: b.OriginalURL, ShortUrl: fmt.Sprintf("%s/%s", h.config.GetShortAddress(), b.ShortURL)})
+	}
+
+	return &pb.UserUrlsResponse{Batch: resBatch}, nil
 }
-func (h *Handlers) DeleteUsersUrls(context.Context, *pb.DeleteUserUrlsRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteUsersUrls not implemented")
+func (h *Handlers) DeleteUsersUrls(ctx context.Context, req *pb.DeleteUserUrlsRequest) (*emptypb.Empty, error) {
+	err, _ := ctx.Value(config.ErrorCtxKey).(error)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "UserUrls: not authorized: %s", err.Error())
+	}
+
+	var ids jsonobject.ShortIds
+	user := ctx.Value(config.UserCtxKey)
+	if user == nil {
+		return nil, status.Error(codes.Unauthenticated, "DeleteUsersUrls: no user in context")
+	}
+
+	userID, ok := user.(string)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "DeleteUsersUrls: wrong user type in context")
+	}
+	go h.cutter.DeleteUrls(userID, ids)
+
+	return nil, status.Errorf(codes.OK, "")
 }
-func (h *Handlers) Stats(context.Context, *emptypb.Empty) (*pb.StatsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Stats not implemented")
+func (h *Handlers) Stats(ctx context.Context, req *emptypb.Empty) (*pb.StatsResponse, error) {
+	p, ok := peer.FromContext(ctx)
+	if !ok || p.Addr.String() == "" {
+		return nil, status.Error(codes.PermissionDenied, "Stats: peer from context not ok")
+	}
+
+	ip := net.ParseIP(p.Addr.String())
+	if ip == nil {
+		return nil, status.Error(codes.PermissionDenied, "Stats: parse peer addr")
+	}
+	cAddr, _, err := net.ParseCIDR(h.config.GetTrustedSubnet())
+	if err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "Stats: ParseCIDR: %s", err.Error())
+	}
+	if !cAddr.Equal(ip) {
+		return nil, status.Error(codes.PermissionDenied, "no access for your IP")
+	}
+	stats, err := h.cutter.GetStats(ctx)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Stats: %s", err.Error())
+	}
+	return &pb.StatsResponse{Urls: int32(stats.URLs), Users: int32(stats.Users)}, nil
 }

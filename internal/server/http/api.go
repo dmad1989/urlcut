@@ -379,6 +379,7 @@ func (s Server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 		responseError(res, fmt.Errorf("userUrlsHandler: getting all urls: %w", err))
+		return
 	}
 
 	if len(urls) == 0 {
