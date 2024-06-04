@@ -81,7 +81,7 @@ func (h *Handlers) Ping(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "ping:  %s", err.Error())
 	}
-	return nil, status.Errorf(codes.OK, "ping ok")
+	return &emptypb.Empty{}, status.Errorf(codes.OK, "ping ok")
 }
 
 func (h *Handlers) CutterJsonBatch(ctx context.Context, req *pb.CutterJsonBatchRequest) (*pb.CutterJsonBatchResponse, error) {
@@ -150,9 +150,10 @@ func (h *Handlers) DeleteUsersUrls(ctx context.Context, req *pb.DeleteUserUrlsRe
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "DeleteUsersUrls: wrong user type in context")
 	}
+
 	go h.cutter.DeleteUrls(userID, ids)
 
-	return nil, status.Errorf(codes.OK, "")
+	return &emptypb.Empty{}, status.Errorf(codes.OK, "")
 }
 func (h *Handlers) Stats(ctx context.Context, req *emptypb.Empty) (*pb.StatsResponse, error) {
 	p, ok := peer.FromContext(ctx)
