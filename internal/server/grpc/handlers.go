@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
@@ -65,7 +66,17 @@ func (h *Handlers) Redirect(ctx context.Context, req *pb.RedirectRequest) (*pb.R
 	if req == nil || req.Shorten == "" {
 		return nil, status.Error(codes.DataLoss, "Redirect: empty data request")
 	}
-	redirectURL, err := h.cutter.GetKeyByValue(ctx, req.Shorten)
+
+	u, err := url.ParseRequestURI(req.Shorten)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Redirect: ParseRequestURI: %s", err.Error())
+	}
+
+	if u.Path == "" || u.Path == "/" {
+		return nil, status.Error(codes.InvalidArgument, "Redirect: no path in url")
+	}
+
+	redirectURL, err := h.cutter.GetKeyByValue(ctx, u.Path)
 	if err != nil {
 		if errors.Is(err, dbstore.ErrDeletedURL) {
 			return nil, status.Error(codes.NotFound, "url already deleted")
