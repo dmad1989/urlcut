@@ -158,7 +158,11 @@ func (s Server) initHandlers() {
 	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
 	s.mux.Get("/api/user/urls", s.userUrlsHandler)
 	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
-	s.mux.Get("/api/internal/stats", s.statsHandler)
+	s.mux.Group(func(r chi.Router) {
+		r.Use(s.checkIPMiddleware)
+		r.Get("/api/internal/stats", s.statsHandler)
+	})
+
 }
 
 // cutterJSONHandler godoc
@@ -503,6 +507,43 @@ func (s Server) statsHandler(res http.ResponseWriter, req *http.Request) {
 	}
 	res.Write(respb)
 
+}
+
+func (s *Server) checkIPMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextW := w
+		if r.Header.Get("X-Real-IP") == "" {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(errStatNoRealIP.Error()))
+			return
+		}
+
+		if s.config.GetTrustedSubnet() == "" {
+			responseError(w, errStatNoConf)
+			return
+		}
+
+		cAddr, _, err := net.ParseCIDR(s.config.GetTrustedSubnet())
+		if err != nil {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(fmt.Errorf("statsHandler, ParseCIDR: %w", err).Error()))
+			return
+		}
+
+		ip := net.ParseIP(r.Header.Get("X-Real-IP"))
+		if ip == nil {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(errStatParseRealIP.Error()))
+			return
+		}
+
+		if !cAddr.Equal(ip) {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(errStatIPNotTrusted.Error()))
+			return
+		}
+		h.ServeHTTP(nextW, r)
+	})
 }
 
 func responseError(res http.ResponseWriter, err error) {
