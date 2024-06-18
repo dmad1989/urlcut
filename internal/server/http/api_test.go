@@ -461,6 +461,7 @@ func TestCutterJSONHandler(t *testing.T) {
 			c := mocks.NewMockConfiger(ctrl)
 			c.EXPECT().GetURL().Return("localhost:8080").AnyTimes()
 			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(1)
+			c.EXPECT().GetTrustedSubnet().Return("").MaxTimes(1)
 			a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return(tt.mock.cutterResult, tt.mock.cutterError).MaxTimes(1)
 
 			s := New(a, c, context.Background())
@@ -643,6 +644,7 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 			c.EXPECT().GetURL().Return("localhost:8080").AnyTimes()
 			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(1)
 			a.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(tt.mock.uploadResult, tt.mock.uploadError).MaxTimes(1)
+			c.EXPECT().GetTrustedSubnet().Return("").MaxTimes(1)
 			s := New(a, c, context.Background())
 			//init request
 			request, err := http.NewRequest(tt.request.httpMethod, url, tt.request.body)
@@ -799,6 +801,7 @@ func TestUserUrlsHandler(t *testing.T) {
 			c.EXPECT().GetURL().Return("localhost:8080").AnyTimes()
 			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(tt.mock.shortAddressTimes)
 			a.EXPECT().GetUserURLs(gomock.Any()).Return(tt.mock.getURLResult, tt.mock.getUrlsError).MaxTimes(1)
+			c.EXPECT().GetTrustedSubnet().Return("").MaxTimes(1)
 			s := New(a, c, context.Background())
 			//init request
 			request, err := http.NewRequestWithContext(tt.r.ctx, http.MethodGet, url, strings.NewReader(""))

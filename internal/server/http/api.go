@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.uber.org/zap"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
@@ -77,16 +78,38 @@ type Configer interface {
 
 // Server содержит интерфейсы для обращения к другим слоям и роутинг.
 type Server struct {
-	cutter ICutter
-	config Configer
-	mux    *chi.Mux
-	http   *http.Server
+	cutter    ICutter
+	config    Configer
+	mux       *chi.Mux
+	http      *http.Server
+	allowedIP *net.IPNet
 }
 
 // New создает новый Server и инициализирует Хэндлеры.
 func New(cutter ICutter, config Configer, ctx context.Context) *Server {
 	api := &Server{cutter: cutter, config: config, mux: chi.NewMux()}
+
+	initIPNet := func() (res *net.IPNet) {
+		if api.config.GetTrustedSubnet() == "" {
+			return
+		}
+		var err error
+		_, res, err = net.ParseCIDR(api.config.GetTrustedSubnet())
+		logging.Log.Infow("tracing", zap.Any("api", api), zap.Any("res", res))
+		if err != nil {
+			logging.Log.Errorw("ParseCIDR",
+				zap.String("config.GetTrustedSubnet", api.config.GetTrustedSubnet()),
+				zap.Error(err))
+			return nil
+		}
+		return
+	}
+
+	api.allowedIP = initIPNet()
+	logging.Log.Infow("tracing return", zap.Any("api", api), zap.Any("allowed", api.allowedIP))
+
 	api.initHandlers()
+
 	api.http = &http.Server{
 		Addr:    config.GetURL(),
 		Handler: api.mux,
@@ -94,6 +117,7 @@ func New(cutter ICutter, config Configer, ctx context.Context) *Server {
 			return ctx
 		},
 	}
+
 	return api
 }
 
@@ -461,36 +485,6 @@ func (s Server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 // @Failure 400 {string} string "Ошибка"
 // @Router /api/internal/stats [get]
 func (s Server) statsHandler(res http.ResponseWriter, req *http.Request) {
-	if req.Header.Get("X-Real-IP") == "" {
-		res.WriteHeader(http.StatusForbidden)
-		res.Write([]byte(errStatNoRealIP.Error()))
-		return
-	}
-
-	if s.config.GetTrustedSubnet() == "" {
-		responseError(res, errStatNoConf)
-		return
-	}
-
-	cAddr, _, err := net.ParseCIDR(s.config.GetTrustedSubnet())
-	if err != nil {
-		res.WriteHeader(http.StatusForbidden)
-		res.Write([]byte(fmt.Errorf("statsHandler, ParseCIDR: %w", err).Error()))
-		return
-	}
-
-	ip := net.ParseIP(req.Header.Get("X-Real-IP"))
-	if ip == nil {
-		res.WriteHeader(http.StatusForbidden)
-		res.Write([]byte(errStatParseRealIP.Error()))
-		return
-	}
-
-	if !cAddr.Equal(ip) {
-		res.WriteHeader(http.StatusForbidden)
-		res.Write([]byte(errStatIPNotTrusted.Error()))
-		return
-	}
 	stats, err := s.cutter.GetStats(req.Context())
 
 	if err != nil {
@@ -518,15 +512,9 @@ func (s *Server) checkIPMiddleware(h http.Handler) http.Handler {
 			return
 		}
 
-		if s.config.GetTrustedSubnet() == "" {
+		logging.Log.Infow("tracing - checkIPMiddleware", zap.Any("server", s), zap.Any("allowed", s.allowedIP))
+		if s.allowedIP == nil {
 			responseError(w, errStatNoConf)
-			return
-		}
-
-		cAddr, _, err := net.ParseCIDR(s.config.GetTrustedSubnet())
-		if err != nil {
-			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte(fmt.Errorf("statsHandler, ParseCIDR: %w", err).Error()))
 			return
 		}
 
@@ -537,7 +525,7 @@ func (s *Server) checkIPMiddleware(h http.Handler) http.Handler {
 			return
 		}
 
-		if !cAddr.Equal(ip) {
+		if !s.allowedIP.Contains(ip) {
 			w.WriteHeader(http.StatusForbidden)
 			w.Write([]byte(errStatIPNotTrusted.Error()))
 			return
