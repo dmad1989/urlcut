@@ -8,9 +8,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "github.com/golang/mock/gomock"
-
 	jsonobject "github.com/dmad1989/urlcut/internal/jsonobject"
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockStore is a mock of Store interface.
@@ -62,6 +61,36 @@ func (m *MockStore) CloseDB() error {
 func (mr *MockStoreMockRecorder) CloseDB() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseDB", reflect.TypeOf((*MockStore)(nil).CloseDB))
+}
+
+// CountURLs mocks base method.
+func (m *MockStore) CountURLs(arg0 context.Context) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountURLs", arg0)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountURLs indicates an expected call of CountURLs.
+func (mr *MockStoreMockRecorder) CountURLs(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountURLs", reflect.TypeOf((*MockStore)(nil).CountURLs), arg0)
+}
+
+// CountUsers mocks base method.
+func (m *MockStore) CountUsers(arg0 context.Context) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUsers", arg0)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUsers indicates an expected call of CountUsers.
+func (mr *MockStoreMockRecorder) CountUsers(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUsers", reflect.TypeOf((*MockStore)(nil).CountUsers), arg0)
 }
 
 // DeleteURLs mocks base method.

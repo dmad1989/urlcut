@@ -1,4 +1,4 @@
-package serverapi
+package http
 
 import (
 	"context"
@@ -15,12 +15,21 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.uber.org/zap"
 
 	"github.com/dmad1989/urlcut/internal/config"
 	"github.com/dmad1989/urlcut/internal/cutter"
 	"github.com/dmad1989/urlcut/internal/dbstore"
 	"github.com/dmad1989/urlcut/internal/jsonobject"
 	"github.com/dmad1989/urlcut/internal/logging"
+	"github.com/dmad1989/urlcut/internal/server/auth"
+)
+
+var (
+	errStatNoRealIP     = errors.New("no X-Real-IP provided")
+	errStatNoConf       = errors.New("no Trusted Subnet defined in config")
+	errStatParseRealIP  = errors.New("parse X-Real-IP")
+	errStatIPNotTrusted = errors.New("no access for your IP")
 )
 
 // @Title URLCutter API
@@ -45,6 +54,9 @@ import (
 // @Tag.name Info
 // @Tag.description "Группа запросов состояния сервиса"
 
+// @Tag.name Stats
+// @Tag.description "Группа запросов для сбора статистики"
+
 // ICutter интерфейс слоя с бизнес логикой
 type ICutter interface {
 	Cut(cxt context.Context, url string) (generated string, err error)
@@ -53,6 +65,7 @@ type ICutter interface {
 	UploadBatch(ctx context.Context, batch jsonobject.Batch) (jsonobject.Batch, error)
 	GetUserURLs(ctx context.Context) (jsonobject.Batch, error)
 	DeleteUrls(userID string, ids jsonobject.ShortIds)
+	GetStats(ctx context.Context) (jsonobject.Stats, error)
 }
 
 // Configer интерйфейс конфигураци
@@ -60,19 +73,51 @@ type Configer interface {
 	GetURL() string
 	GetShortAddress() string
 	GetEnableHTTPS() bool
+	GetTrustedSubnet() string
 }
 
 // Server содержит интерфейсы для обращения к другим слоям и роутинг.
 type Server struct {
-	cutter ICutter
-	config Configer
-	mux    *chi.Mux
+	cutter    ICutter
+	config    Configer
+	mux       *chi.Mux
+	http      *http.Server
+	allowedIP *net.IPNet
 }
 
 // New создает новый Server и инициализирует Хэндлеры.
-func New(cutter ICutter, config Configer) *Server {
+func New(cutter ICutter, config Configer, ctx context.Context) *Server {
 	api := &Server{cutter: cutter, config: config, mux: chi.NewMux()}
+
+	initIPNet := func() (res *net.IPNet) {
+		if api.config.GetTrustedSubnet() == "" {
+			return
+		}
+		var err error
+		_, res, err = net.ParseCIDR(api.config.GetTrustedSubnet())
+		logging.Log.Infow("tracing", zap.Any("api", api), zap.Any("res", res))
+		if err != nil {
+			logging.Log.Errorw("ParseCIDR",
+				zap.String("config.GetTrustedSubnet", api.config.GetTrustedSubnet()),
+				zap.Error(err))
+			return nil
+		}
+		return
+	}
+
+	api.allowedIP = initIPNet()
+	logging.Log.Infow("tracing return", zap.Any("api", api), zap.Any("allowed", api.allowedIP))
+
 	api.initHandlers()
+
+	api.http = &http.Server{
+		Addr:    config.GetURL(),
+		Handler: api.mux,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
+	}
+
 	return api
 }
 
@@ -82,18 +127,11 @@ func New(cutter ICutter, config Configer) *Server {
 func (s Server) Run(ctx context.Context) error {
 	defer logging.Log.Sync()
 	logging.Log.Infof("Server started at %s", s.config.GetURL())
-	httpServer := &http.Server{
-		Addr:    s.config.GetURL(),
-		Handler: s.mux,
-		BaseContext: func(_ net.Listener) context.Context {
-			return ctx
-		},
-	}
 
 	httpServ := func() error {
-		err := httpServer.ListenAndServe()
+		err := s.http.ListenAndServe()
 		if err != nil {
-			return fmt.Errorf("serverapi.Run: %w", err)
+			return fmt.Errorf("api.Run: %w", err)
 		}
 		return nil
 	}
@@ -106,7 +144,7 @@ func (s Server) Run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("create cert: %w ", err)
 		}
-		err = httpServer.ListenAndServeTLS(cert, key)
+		err = s.http.ListenAndServeTLS(cert, key)
 		return fmt.Errorf("https serv start: %w ", err)
 	}
 
@@ -117,23 +155,25 @@ func (s Server) Run(ctx context.Context) error {
 		} else {
 			err = httpServ()
 		}
-		if err != nil && err != http.ErrServerClosed {
-			logging.Log.Errorf("listen: %+v\n", err)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logging.Log.Errorf("http listen: %+v\n", err)
 		}
 	}()
 
-	<-ctx.Done()
-	logging.Log.Info("server closed")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := httpServer.Shutdown(ctx); err != nil {
-		logging.Log.Errorf("server shutdown: %s \n", err)
-	}
 	return nil
 }
 
+func (s *Server) Stop() {
+	logging.Log.Info("http server closed")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.http.Shutdown(ctx); err != nil {
+		logging.Log.Errorf("http server shutdown: %s \n", err)
+	}
+}
+
 func (s Server) initHandlers() {
-	s.mux.Use(logging.WithLog, s.Auth, gzipMiddleware)
+	s.mux.Use(logging.WithLog, auth.HTTP, gzipMiddleware)
 	s.mux.Mount("/debug", middleware.Profiler())
 	s.mux.Post("/", s.cutterHandler)
 	s.mux.Get("/{path}", s.redirectHandler)
@@ -142,6 +182,11 @@ func (s Server) initHandlers() {
 	s.mux.Post("/api/shorten/batch", s.cutterJSONBatchHandler)
 	s.mux.Get("/api/user/urls", s.userUrlsHandler)
 	s.mux.Delete("/api/user/urls", s.deleteUserUrlsHandler)
+	s.mux.Group(func(r chi.Router) {
+		r.Use(s.checkIPMiddleware)
+		r.Get("/api/internal/stats", s.statsHandler)
+	})
+
 }
 
 // cutterJSONHandler godoc
@@ -259,7 +304,7 @@ func (s Server) redirectHandler(res http.ResponseWriter, req *http.Request) {
 
 	redirectURL, err := s.cutter.GetKeyByValue(req.Context(), path)
 	if err != nil {
-		if errors.Is(err, dbstore.ErrorDeletedURL) {
+		if errors.Is(err, dbstore.ErrDeletedURL) {
 			res.WriteHeader(http.StatusGone)
 			res.Write([]byte(err.Error()))
 			return
@@ -362,6 +407,7 @@ func (s Server) userUrlsHandler(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 		responseError(res, fmt.Errorf("userUrlsHandler: getting all urls: %w", err))
+		return
 	}
 
 	if len(urls) == 0 {
@@ -426,6 +472,66 @@ func (s Server) deleteUserUrlsHandler(res http.ResponseWriter, req *http.Request
 	}
 	go s.cutter.DeleteUrls(userID, ids)
 	res.WriteHeader(http.StatusAccepted)
+}
+
+// statsHandler godoc
+// @Tags Stats
+// @Summary Количество уникальных пользователей и количество URL
+// @ID stats
+// @Produce json
+// @Success 200 {object} jsonobject.Stats
+// @Failure 401 {string} string "Ошибка авторизации"
+// @Failure 403 {string} string "Доступ к данным запрещен"
+// @Failure 400 {string} string "Ошибка"
+// @Router /api/internal/stats [get]
+func (s Server) statsHandler(res http.ResponseWriter, req *http.Request) {
+	stats, err := s.cutter.GetStats(req.Context())
+
+	if err != nil {
+		responseError(res, fmt.Errorf("statsHandler, %w", err))
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	respb, err := stats.MarshalJSON()
+	if err != nil {
+		responseError(res, fmt.Errorf("statsHandler: encoding response: %w", err))
+		return
+	}
+	res.Write(respb)
+
+}
+
+func (s *Server) checkIPMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextW := w
+		if r.Header.Get("X-Real-IP") == "" {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(errStatNoRealIP.Error()))
+			return
+		}
+
+		logging.Log.Infow("tracing - checkIPMiddleware", zap.Any("server", s), zap.Any("allowed", s.allowedIP))
+		if s.allowedIP == nil {
+			responseError(w, errStatNoConf)
+			return
+		}
+
+		ip := net.ParseIP(r.Header.Get("X-Real-IP"))
+		if ip == nil {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(errStatParseRealIP.Error()))
+			return
+		}
+
+		if !s.allowedIP.Contains(ip) {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(errStatIPNotTrusted.Error()))
+			return
+		}
+		h.ServeHTTP(nextW, r)
+	})
 }
 
 func responseError(res http.ResponseWriter, err error) {

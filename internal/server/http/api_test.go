@@ -1,4 +1,4 @@
-package serverapi
+package http
 
 import (
 	"bytes"
@@ -54,6 +54,7 @@ type TestConfig struct {
 	shortAddress  string
 	fileStoreName string
 	dbConnName    string
+	trustedSubnet string
 }
 
 var tconf *TestConfig
@@ -78,6 +79,11 @@ func (c TestConfig) GetUserContextKey() config.ContextKey {
 func (c TestConfig) GetEnableHTTPS() bool {
 	return false
 }
+
+func (c TestConfig) GetTrustedSubnet() string {
+	return c.trustedSubnet
+}
+
 func initEnv() (serv *Server, testserver *httptest.Server) {
 	tconf = &TestConfig{
 		url:           ":8080",
@@ -89,7 +95,7 @@ func initEnv() (serv *Server, testserver *httptest.Server) {
 		panic(err)
 	}
 	cut := cutter.New(storage)
-	serv = New(cut, tconf)
+	serv = New(cut, tconf, context.Background())
 	testserver = httptest.NewServer(serv.mux)
 	tconf.shortAddress = testserver.URL
 	errorUnique.Code = "notunique"
@@ -453,10 +459,12 @@ func TestCutterJSONHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a := mocks.NewMockICutter(ctrl)
 			c := mocks.NewMockConfiger(ctrl)
+			c.EXPECT().GetURL().Return("localhost:8080").AnyTimes()
 			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(1)
+			c.EXPECT().GetTrustedSubnet().Return("").MaxTimes(1)
 			a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return(tt.mock.cutterResult, tt.mock.cutterError).MaxTimes(1)
 
-			s := New(a, c)
+			s := New(a, c, context.Background())
 			request, err := http.NewRequest(tt.request.httpMethod, url, tt.request.body)
 			if tt.request.jsonHeader {
 				request.Header.Set("Content-Type", "application/json")
@@ -633,9 +641,11 @@ func TestCutterJSONBatchHandler(t *testing.T) {
 			//init mocks
 			a := mocks.NewMockICutter(ctrl)
 			c := mocks.NewMockConfiger(ctrl)
+			c.EXPECT().GetURL().Return("localhost:8080").AnyTimes()
 			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(1)
 			a.EXPECT().UploadBatch(gomock.Any(), gomock.Any()).Return(tt.mock.uploadResult, tt.mock.uploadError).MaxTimes(1)
-			s := New(a, c)
+			c.EXPECT().GetTrustedSubnet().Return("").MaxTimes(1)
+			s := New(a, c, context.Background())
 			//init request
 			request, err := http.NewRequest(tt.request.httpMethod, url, tt.request.body)
 			if tt.request.jsonHeader {
@@ -788,9 +798,11 @@ func TestUserUrlsHandler(t *testing.T) {
 			//init mocks
 			a := mocks.NewMockICutter(ctrl)
 			c := mocks.NewMockConfiger(ctrl)
+			c.EXPECT().GetURL().Return("localhost:8080").AnyTimes()
 			c.EXPECT().GetShortAddress().Return(tt.mock.shortAddress).MaxTimes(tt.mock.shortAddressTimes)
 			a.EXPECT().GetUserURLs(gomock.Any()).Return(tt.mock.getURLResult, tt.mock.getUrlsError).MaxTimes(1)
-			s := New(a, c)
+			c.EXPECT().GetTrustedSubnet().Return("").MaxTimes(1)
+			s := New(a, c, context.Background())
 			//init request
 			request, err := http.NewRequestWithContext(tt.r.ctx, http.MethodGet, url, strings.NewReader(""))
 			require.NoError(t, err)
@@ -822,7 +834,7 @@ func BenchmarkCutterJSONHandler(b *testing.B) {
 	defer ctrl.Finish()
 	a := mocks.NewMockICutter(ctrl)
 	c := mocks.NewMockConfiger(ctrl)
-	s := New(a, c)
+	s := New(a, c, context.Background())
 	a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return("returnString", nil).AnyTimes()
 	_, testserver := initEnv()
 	defer testserver.Close()
@@ -838,7 +850,7 @@ func BenchmarkCutterHandler(b *testing.B) {
 	defer ctrl.Finish()
 	a := mocks.NewMockICutter(ctrl)
 	c := mocks.NewMockConfiger(ctrl)
-	s := New(a, c)
+	s := New(a, c, context.Background())
 	_, testserver := initEnv()
 	defer testserver.Close()
 	a.EXPECT().Cut(gomock.Any(), gomock.Any()).Return("returnString", nil).AnyTimes()
@@ -855,7 +867,7 @@ func BenchmarkCutterJSONBatchHandler(b *testing.B) {
 	defer ctrl.Finish()
 	a := mocks.NewMockICutter(ctrl)
 	c := mocks.NewMockConfiger(ctrl)
-	s := New(a, c)
+	s := New(a, c, context.Background())
 	_, testserver := initEnv()
 	defer testserver.Close()
 	batch := make(jsonobject.Batch, 200)
@@ -881,7 +893,7 @@ func BenchmarkUserUrlsHandler(b *testing.B) {
 	defer ctrl.Finish()
 	a := mocks.NewMockICutter(ctrl)
 	c := mocks.NewMockConfiger(ctrl)
-	s := New(a, c)
+	s := New(a, c, context.Background())
 	_, testserver := initEnv()
 	defer testserver.Close()
 	batch := make(jsonobject.Batch, 200)
@@ -907,7 +919,7 @@ func BenchmarkDeleteUserUrlsHandler(b *testing.B) {
 	defer ctrl.Finish()
 	a := mocks.NewMockICutter(ctrl)
 	c := mocks.NewMockConfiger(ctrl)
-	s := New(a, c)
+	s := New(a, c, context.Background())
 	_, testserver := initEnv()
 	defer testserver.Close()
 	a.EXPECT().DeleteUrls(gomock.Any(), gomock.Any()).AnyTimes()

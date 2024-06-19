@@ -36,7 +36,14 @@ var (
 	sqlGetUrlsByAuthor string
 	//go:embed sql/markDelete.sql
 	sqlMarkDelete string
+	//go:embed sql/countUsers.sql
+	sqlCountUsers string
+	//go:embed sql/countURLs.sql
+	sqlCountURLs string
 )
+
+// ErrDeletedURL специальная ошибка для удаленных URL.
+var ErrDeletedURL = errors.New("url was deleted")
 
 type configer interface {
 	GetFileStoreName() string
@@ -138,9 +145,6 @@ func (s *storage) Add(ctx context.Context, original, short string) error {
 	return nil
 }
 
-// ErrorDeletedURL специальная ошибка для удаленных URL.
-var ErrorDeletedURL = errors.New("url was deleted")
-
 // GetOriginalURL находит по переданному сокращению оригинальный URL.
 func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, error) {
 	tctx, cancel := context.WithTimeout(ctx, timeout)
@@ -155,7 +159,7 @@ func (s *storage) GetOriginalURL(ctx context.Context, value string) (string, err
 	case err != nil:
 		return "", fmt.Errorf("dbstore.GetOriginalURL select: %w", err)
 	case isDeleted:
-		return "", ErrorDeletedURL
+		return "", ErrDeletedURL
 	default:
 		return sURL, nil
 	}
@@ -270,4 +274,38 @@ func (s *storage) DeleteURLs(ctx context.Context, userID string, ids []string) e
 	}
 	logging.Log.Infow("sucsess")
 	return nil
+}
+
+// CountURLs - получаем количество всех URL
+func (s *storage) CountURLs(ctx context.Context) (int, error) {
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	URLs := 0
+	err := s.db.QueryRowContext(tctx, sqlCountURLs).Scan(&URLs)
+
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return URLs, nil
+	case err != nil:
+		return 0, fmt.Errorf("dbstore.CountURLs select: %w", err)
+	default:
+		return URLs, nil
+	}
+}
+
+// CountUsers - получаем количество всех уникальных пользователей
+func (s *storage) CountUsers(ctx context.Context) (int, error) {
+	tctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	users := 0
+	err := s.db.QueryRowContext(tctx, sqlCountUsers).Scan(&users)
+
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return users, nil
+	case err != nil:
+		return 0, fmt.Errorf("dbstore.CountUsers select: %w", err)
+	default:
+		return users, nil
+	}
 }
