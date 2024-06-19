@@ -100,14 +100,14 @@ func GRPC(ctx context.Context) (context.Context, error) {
 	case token == "" || errors.Is(err, ErrorInvalidToken):
 		userID = createUserID()
 		if token, err = generateToken(userID); err != nil {
-			return nil, fmt.Errorf("auth : %w", err)
+			return nil, fmt.Errorf("generateToken : %w", err)
 		}
 	case err != nil:
 		return nil, fmt.Errorf("auth : %w", err)
 	}
 
 	tHeader := metadata.New(map[string]string{"authorization": "bearer " + token})
-	if err := grpc.SendHeader(ctx, tHeader); err != nil {
+	if err := grpc.SetHeader(ctx, tHeader); err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to send 'authorization' header")
 	}
 	ctx = context.WithValue(ctx, config.TokenCtxKey, token)

@@ -172,7 +172,7 @@ func (a *App) GetStats(ctx context.Context) (jsonobject.Stats, error) {
 		return nil
 	})
 	if err := g.Wait(); err != nil {
-		return jsonobject.Stats{}, nil
+		return jsonobject.Stats{}, fmt.Errorf("in errgroup: %w", err)
 	}
 	return stats, nil
 }
